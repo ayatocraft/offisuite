@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexis Exdocs</title>
+    <!-- Word (.docx) 解析用 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        :root {
+            --brand-primary: #185abd;
+            --brand-dark: #106ebe;
+            --bg-body: #eef1f5;
+            --ribbon-bg: #ffffff;
+            --border-color: #d2d6dc;
+            --text-main: #2b2b2b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Meiryo, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background-color: var(--bg-body); color: var(--text-main); overflow: hidden; }
+
+        /* ホーム画面 */
+        .app-home-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #f8f9fa; z-index: 2000; display: flex; flex-direction: column;
+        }
+        .home-header { background: var(--brand-primary); color: white; padding: 24px 48px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .home-header h1 { font-size: 2.2rem; font-weight: 700; }
+        .home-main { padding: 32px 48px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 32px; }
+
+        .section-title { font-size: 1.2rem; font-weight: 700; color: #444; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px; }
+        
+        .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+        .template-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; height: 180px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.04); }
+        .template-card:hover { border-color: var(--brand-primary); transform: translateY(-3px); box-shadow: 0 6px 14px rgba(0,0,0,0.1); }
+        .template-preview { background: #f3f4f8; height: 100px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #777; border: 1px dashed #ccc; }
+
+        .recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        .recent-card { background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
+        .recent-card:hover { border-color: var(--brand-primary); background: #f4f8ff; }
+        .recent-info h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-main); }
+        .recent-info span { font-size: 0.78rem; color: #888; }
+
+        /* タイトルバー */
+        .title-bar { height: 42px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; user-select: none; }
+        .title-bar .app-info { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+        .doc-title-input { background: rgba(255,255,255,0.15); border: 1px solid transparent; color: white; font-weight: bold; font-size: 0.95rem; padding: 4px 10px; border-radius: 4px; outline: none; width: 260px; }
+        .doc-title-input:focus { border-color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.2); }
+        
+        .btn-header { background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .btn-header:hover { background: rgba(255,255,255,0.35); }
+
+        /* リボンUI */
+        .ribbon-container { background: var(--ribbon-bg); border-bottom: 1px solid var(--border-color); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .ribbon-tabs { display: flex; background: #f3f4f8; border-bottom: 1px solid var(--border-color); padding-left: 16px; }
+        .tab-btn { padding: 9px 20px; border: none; background: transparent; cursor: pointer; font-size: 0.88rem; font-weight: 600; color: #505050; border-bottom: 3px solid transparent; }
+        .tab-btn:hover { color: var(--brand-primary); }
+        .tab-btn.active { color: var(--brand-primary); border-bottom-color: var(--brand-primary); background: #ffffff; }
+
+        .ribbon-toolbar { display: flex; padding: 8px 16px; gap: 20px; align-items: center; height: 95px; overflow-x: auto; }
+        .ribbon-toolbar.hidden { display: none; }
+        
+        .tool-group { display: flex; flex-direction: column; justify-content: space-between; padding-right: 18px; border-right: 1px solid var(--border-color); height: 100%; }
+        .tool-group-title { font-size: 0.72rem; color: #888; text-align: center; margin-top: 4px; font-weight: 600; }
+        .tool-row { display: flex; align-items: center; gap: 4px; }
+
+        .btn-tool { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; height: 30px; min-width: 30px; color: #333; transition: 0.15s; }
+        .btn-tool:hover { background: #eef1f5; border-color: #c0c4cc; }
+        
+        select.tool-select { height: 30px; border: 1px solid #c0c4cc; border-radius: 4px; padding: 0 8px; font-size: 0.85rem; background: white; outline: none; }
+
+        /* 用紙 */
+        .workspace { flex: 1; overflow-y: auto; padding: 40px; display: flex; justify-content: center; background: #eef1f5; position: relative; }
+        .paper-container { width: 210mm; min-height: 297mm; background: white; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 25mm 20mm; margin-bottom: 60px; border-radius: 2px; }
+        .paper-container.landscape { width: 297mm; min-height: 210mm; }
+
+        #editor { width: 100%; min-height: 240mm; outline: none; font-size: 11pt; line-height: 1.6; word-wrap: break-word; }
+        #editor:empty::before { content: '文章を入力してください...'; color: #aaa; pointer-events: none; }
+        
+        #editor table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+        #editor td, #editor th { border: 1px solid #ccc; padding: 8px; }
+
+        /* ステータスバー */
+        .status-bar { height: 26px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 0.78rem; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+    <!-- アプリ専用ホーム画面（ダッシュボード） -->
+    <div class="app-home-overlay" id="appHome">
+        <div class="home-header">
+            <div>
+                <h1>Nexis Exdocs</h1>
+                <p>ドキュメントの新規作成・MS Word (.docx) ファイルの編集</p>
+            </div>
+            <button class="btn-header" onclick="location.href='Nexis_OffiSuite.html'" style="font-size:1rem; padding:8px 18px;">← Suiteポータルへ</button>
+        </div>
+        <div class="home-main">
+            <div>
+                <div class="section-title">新規ドキュメントを作成</div>
+                <div class="template-grid">
+                    <div class="template-card" onclick="startNewDoc('blank')">
+                        <div class="template-preview">白紙</div>
+                        <div style="font-weight:700;">白紙のドキュメント</div>
+                    </div>
+                    <div class="template-card" onclick="startNewDoc('business')">
+                        <div class="template-preview" style="background:#e8f0fe; color:#185abd;">ビジネス</div>
+                        <div style="font-weight:700;">業務報告書フォーマット</div>
+                    </div>
+                    <div class="template-card" onclick="startNewDoc('memo')">
+                        <div class="template-preview" style="background:#fef3c7; color:#92400e;">メモ</div>
+                        <div style="font-weight:700;">社内連絡メモ</div>
+                    </div>
+                    <div class="template-card" onclick="document.getElementById('homeFileInput').click()">
+                        <div class="template-preview" style="background:#185abd; color:white;">📁 ファイルを開く</div>
+                        <div style="font-weight:700;">.docx / .edoc を読み込む</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">最近使ったファイル</div>
+                <div class="recent-grid" id="recentFileList"></div>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="homeFileInput" style="display:none;" onchange="loadDocxOrEdoc(event)" accept=".edoc,.docx">
+
+    <!-- タイトルバー -->
+    <div class="title-bar">
+        <div class="app-info">
+            <button class="btn-header" onclick="showHome()">← ホーム</button>
+            <span>📄 Nexis Exdocs</span>
+            <input type="text" id="docName" class="doc-title-input" value="無題のドキュメント.edoc" onchange="isManualTitle = true;">
+        </div>
+        <div>
+            <button class="btn-header" onclick="saveEdocFile()">.edoc 保存</button>
+            <button class="btn-header" onclick="exportAsDocx()">.docx エクスポート</button>
+            <button class="btn-header" onclick="window.print()">印刷 / PDF</button>
+        </div>
+    </div>
+
+    <!-- リボンバー -->
+    <div class="ribbon-container">
+        <div class="ribbon-tabs">
+            <button class="tab-btn active" onclick="switchTab(event, 'home')">ホーム</button>
+            <button class="tab-btn" onclick="switchTab(event, 'insert')">挿入</button>
+            <button class="tab-btn" onclick="switchTab(event, 'layout')">ページレイアウト</button>
+        </div>
+
+        <!-- ホームタブ -->
+        <div class="ribbon-toolbar" id="tab-home">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <select id="fontSelector" class="tool-select" onchange="applyFont(this.value)">
+                        <option value="Segoe UI">Segoe UI</option>
+                        <option value="游ゴシック">游ゴシック</option>
+                        <option value="メイリオ">メイリオ</option>
+                        <option value="ＭＳ 明朝">ＭＳ 明朝</option>
+                        <option value="Arial">Arial</option>
+                    </select>
+                    <button class="btn-tool" onclick="loadLocalFonts()" title="PC内部の全フォントを自動読み込み">🔄 PCフォント同期</button>
+                    <select class="tool-select" onchange="applyFontSize(this.value)" style="width:70px;">
+                        <option value="12pt">12 pt</option>
+                        <option value="9pt">9 pt</option>
+                        <option value="10pt">10 pt</option>
+                        <option value="14pt">14 pt</option>
+                        <option value="18pt">18 pt</option>
+                        <option value="24pt">24 pt</option>
+                        <option value="36pt">36 pt</option>
+                    </select>
+                </div>
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="execCmd('bold')"><b>B</b></button>
+                    <button class="btn-tool" onclick="execCmd('italic')"><i>I</i></button>
+                    <button class="btn-tool" onclick="execCmd('underline')"><u>U</u></button>
+                    <button class="btn-tool" onclick="execCmd('strikeThrough')"><s>S</s></button>
+                    <input type="color" onchange="applyColor('color', this.value)" style="width:26px; height:26px; border:none; cursor:pointer;" title="文字色">
+                    <input type="color" onchange="applyColor('backgroundColor', this.value)" value="#ffff00" style="width:26px; height:26px; border:none; cursor:pointer;" title="ハイライト">
+                </div>
+                <div class="tool-group-title">フォント</div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="execCmd('justifyLeft')">左揃え</button>
+                    <button class="btn-tool" onclick="execCmd('justifyCenter')">中央</button>
+                    <button class="btn-tool" onclick="execCmd('justifyRight')">右揃え</button>
+                </div>
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="execCmd('insertUnorderedList')">• 箇条書き</button>
+                    <button class="btn-tool" onclick="execCmd('insertOrderedList')">1. 番号順</button>
+                </div>
+                <div class="tool-group-title">段落</div>
+            </div>
+        </div>
+
+        <div class="ribbon-toolbar hidden" id="tab-insert">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="insertCustomTable()">📊 表の挿入</button>
+                </div>
+                <div class="tool-group-title">テーブル</div>
+            </div>
+        </div>
+
+        <div class="ribbon-toolbar hidden" id="tab-layout">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="setOrientation('portrait')">📄 縦向き</button>
+                    <button class="btn-tool" onclick="setOrientation('landscape')">🖼 横向き</button>
+                </div>
+                <div class="tool-group-title">印刷向き</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用紙エリア -->
+    <div class="workspace">
+        <div class="paper-container" id="paper">
+            <div id="editor" contenteditable="true" oninput="updateStats()" onblur="updateTitleFromFirstLine()"></div>
+        </div>
+    </div>
+
+    <!-- ステータスバー -->
+    <div class="status-bar">
+        <div>
+            <span id="statChars">文字数: 0</span> | 
+            <span id="statWords">単語数: 0</span>
+        </div>
+        <div>Nexis Exdocs Engine v3.2 | Range Selection Fixed</div>
+    </div>
+
+    <script>
+        let isManualTitle = false;
+        let savedRange = null;
+
+        // 選択範囲を一時保持
+        function saveSelection() {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                const editor = document.getElementById('editor');
+                if (editor.contains(range.commonAncestorContainer)) {
+                    savedRange = range.cloneRange();
+                }
+            }
+        }
+
+        // 選択範囲を復元
+        function restoreSelection() {
+            const editor = document.getElementById('editor');
+            editor.focus();
+            if (savedRange) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(savedRange);
+            }
+        }
+
+        // コマンド実行（太字・斜体・揃え等）
+        function execCmd(cmd, val = null) {
+            restoreSelection();
+            document.execCommand('styleWithCSS', false, true);
+            document.execCommand(cmd, false, val);
+            saveSelection();
+            updateStats();
+        }
+
+        // 選択範囲へのスタイルの直接適用（フォント名、フォントサイズ、カラー）
+        function applyInlineStyle(styleProperty, value) {
+            restoreSelection();
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return;
+
+            const range = sel.getRangeAt(0);
+
+            // テキストが未選択（カーソルのみ）の場合は execCommand をフォールバック利用
+            if (range.collapsed) {
+                document.execCommand('styleWithCSS', false, true);
+                if (styleProperty === 'fontFamily') {
+                    document.execCommand('fontName', false, value);
+                } else if (styleProperty === 'fontSize') {
+                    // font size (1-7) 互換の変換
+                    let sizeMap = { '9pt': '1', '10pt': '2', '12pt': '3', '14pt': '4', '18pt': '5', '24pt': '6', '36pt': '7' };
+                    document.execCommand('fontSize', false, sizeMap[value] || '3');
+                } else if (styleProperty === 'color') {
+                    document.execCommand('foreColor', false, value);
+                } else if (styleProperty === 'backgroundColor') {
+                    document.execCommand('hiliteColor', false, value);
+                }
+                saveSelection();
+                return;
+            }
+
+            // テキスト選択時の処理
+            const span = document.createElement('span');
+            let cssProperty = styleProperty;
+            if (styleProperty === 'fontFamily') {
+            cssProperty = 'font-family';  // CSS標準形式に
+            }
+            span.style.cssText = `${cssProperty}: ${value};`;  // 確実に適用;
+
+            try {
+                span.appendChild(range.extractContents());
+                range.insertNode(span);
+                
+                // 変更後の範囲を記録
+                sel.removeAllRanges();
+                const newRange = document.createRange();
+                newRange.selectNodeContents(span);
+                sel.addRange(newRange);
+                saveSelection();
+            } catch (e) {
+                console.error('Style apply failed:', e);
+            }
+            updateStats();
+        }
+
+        function applyFont(fontName) {
+            if (!fontName) return;
+            applyInlineStyle('fontFamily', fontName);
+        }
+
+        function applyFontSize(size) {
+            if (!size) return;
+            applyInlineStyle('fontSize', size);
+        }
+
+        function applyColor(cssProp, color) {
+            if (!color) return;
+            applyInlineStyle(cssProp, color);
+        }
+
+        // 1行目をタイトルに反映（フォーカス外れ時に自動反映）
+        function updateTitleFromFirstLine() {
+            if (isManualTitle) return;
+            const editor = document.getElementById('editor');
+            const lines = editor.innerText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length > 0) {
+                let firstLine = lines[0].substring(0, 30);
+                document.getElementById('docName').value = firstLine + '.edoc';
+            } else {
+                document.getElementById('docName').value = '無題のドキュメント.edoc';
+            }
+        }
+
+        /* 最近使ったファイル管理 */
+        function saveToRecent(name, content) {
+            let recent = JSON.parse(localStorage.getItem('NEXIS_EXDOCS_RECENT') || '[]');
+            recent = recent.filter(item => item.name !== name);
+            recent.unshift({
+                name: name,
+                content: content,
+                date: new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            });
+            if (recent.length > 6) recent.pop();
+            localStorage.setItem('NEXIS_EXDOCS_RECENT', JSON.stringify(recent));
+            renderRecentFiles();
+        }
+
+        function renderRecentFiles() {
+            const listContainer = document.getElementById('recentFileList');
+            const recent = JSON.parse(localStorage.getItem('NEXIS_EXDOCS_RECENT') || '[]');
+            if (recent.length === 0) {
+                listContainer.innerHTML = '<div style="color:#888; grid-column: 1/-1;">最近開いたファイルはありません</div>';
+                return;
+            }
+            listContainer.innerHTML = recent.map((item, idx) => `
+                <div class="recent-card" onclick="loadRecentDoc(${idx})">
+                    <div class="recent-info">
+                        <h4>📄 ${item.name}</h4>
+                        <span>最終閲覧: ${item.date}</span>
+                    </div>
+                    <span style="color:var(--brand-primary); font-weight:bold;">開く →</span>
+                </div>
+            `).join('');
+        }
+
+        function loadRecentDoc(idx) {
+            const recent = JSON.parse(localStorage.getItem('NEXIS_EXDOCS_RECENT') || '[]');
+            const doc = recent[idx];
+            if (doc) {
+                document.getElementById('editor').innerHTML = doc.content;
+                document.getElementById('docName').value = doc.name;
+                isManualTitle = true;
+                document.getElementById('appHome').style.display = 'none';
+                updateStats();
+            }
+        }
+
+        function switchTab(evt, tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.ribbon-toolbar').forEach(t => t.classList.add('hidden'));
+            evt.currentTarget.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        }
+
+        function showHome() {
+            renderRecentFiles();
+            document.getElementById('appHome').style.display = 'flex';
+        }
+
+        function startNewDoc(type) {
+            document.getElementById('appHome').style.display = 'none';
+            isManualTitle = false;
+            const editor = document.getElementById('editor');
+            if (type === 'blank') {
+                editor.innerHTML = '';
+            } else if (type === 'business') {
+                editor.innerHTML = '<h1>業務進捗報告書</h1><hr><p><strong>作成日:</strong> ' + new Date().toLocaleDateString() + '</p><h3>1. 概要</h3><p>ここに全体の概要を記述します。</p>';
+            } else if (type === 'memo') {
+                editor.innerHTML = '<h2>社内連絡メモ</h2><p>ここに連絡内容を入力してください。</p>';
+            }
+            updateTitleFromFirstLine();
+            updateStats();
+        }
+
+        function updateStats() {
+            const txt = document.getElementById('editor').innerText;
+            document.getElementById('statChars').textContent = `文字数: ${txt.replace(/\s/g, '').length}`;
+            document.getElementById('statWords').textContent = `単語数: ${txt.trim() ? txt.trim().split(/\s+/).length : 0}`;
+        }
+
+        async function loadLocalFonts() {
+            const select = document.getElementById('fontSelector');
+            if ('queryLocalFonts' in window) {
+                try {
+                    const availableFonts = await window.queryLocalFonts();
+                    const fontFamilies = new Set();
+                    availableFonts.forEach(font => fontFamilies.add(font.family));
+                    const sortedFonts = Array.from(fontFamilies).sort();
+
+                    select.innerHTML = '';
+                    const group = document.createElement('optgroup');
+                    group.label = "PCローカルフォント";
+
+                    sortedFonts.forEach(family => {
+                        const opt = document.createElement('option');
+                        opt.value = family;
+                        opt.textContent = family;
+                        opt.style.fontFamily = family;
+                        group.appendChild(opt);
+                    });
+                    select.appendChild(group);
+                    alert(`PCから ${sortedFonts.length} 個のフォントを読み込みました。`);
+                } catch (err) { console.warn(err); }
+            } else {
+                alert('お使いのブラウザは Local Font Access API 非対応です。');
+            }
+        }
+
+        function saveEdocFile() {
+            const docName = document.getElementById('docName').value;
+            const content = document.getElementById('editor').innerHTML;
+            saveToRecent(docName, content);
+
+            const payload = { app: 'Nexis Exdocs', content: content };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = docName;
+            a.click();
+        }
+
+        function loadDocxOrEdoc(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const ext = file.name.split('.').pop().toLowerCase();
+            document.getElementById('docName').value = file.name;
+            isManualTitle = true;
+
+            if (ext === 'docx') {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    mammoth.convertToHtml({ arrayBuffer: evt.target.result })
+                        .then(res => {
+                            document.getElementById('editor').innerHTML = res.value;
+                            document.getElementById('appHome').style.display = 'none';
+                            saveToRecent(file.name, res.value);
+                            updateStats();
+                        });
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (ext === 'edoc') {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const parsed = JSON.parse(evt.target.result);
+                        document.getElementById('editor').innerHTML = parsed.content || '';
+                        document.getElementById('appHome').style.display = 'none';
+                        saveToRecent(file.name, parsed.content || '');
+                        updateStats();
+                    } catch(err) { alert('.edocの解析に失敗しました。'); }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function setOrientation(orient) {
+            const paper = document.getElementById('paper');
+            if (orient === 'landscape') paper.classList.add('landscape');
+            else paper.classList.remove('landscape');
+        }
+
+        function insertCustomTable() {
+            const rows = prompt('行数を入力してください', '3');
+            const cols = prompt('列数を入力してください', '3');
+            if (!rows || !cols) return;
+
+            let html = '<table><tbody>';
+            for (let r = 0; r < parseInt(rows); r++) {
+                html += '<tr>';
+                for (let c = 0; c < parseInt(cols); c++) {
+                    html += `<td>セル ${r+1}-${c+1}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</tbody></table><p></p>';
+            execCmd('insertHTML', html);
+        }
+
+        function exportAsDocx() {
+            const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'></head><body>";
+            const footer = "</body></html>";
+            const html = header + document.getElementById('editor').innerHTML + footer;
+
+            const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = document.getElementById('docName').value.replace('.edoc', '') + '.docx';
+            a.click();
+        }
+
+        // 初期化イベントの登録
+        window.addEventListener('DOMContentLoaded', () => {
+            const editor = document.getElementById('editor');
+
+            // 選択範囲の自動保存
+            editor.addEventListener('mouseup', saveSelection);
+            editor.addEventListener('keyup', saveSelection);
+            
+            // ツール選択時にも直前の範囲をキープ
+            document.querySelectorAll('.tool-select, input[type="color"]').forEach(elem => {
+                elem.addEventListener('mousedown', saveSelection);
+            });
+
+            renderRecentFiles();
+            if ('queryLocalFonts' in window) loadLocalFonts();
+        });
+    </script>
+</body>
+</html>

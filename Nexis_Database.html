@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexis Database - Office Edition</title>
+    <style>
+        :root {
+            --brand-primary: #a4373a;
+            --brand-dark: #7d2528;
+            --brand-light: #fdf5f5;
+            --bg-body: #f3f3f3;
+            --border-color: #d4d4d4;
+            --office-sidebar: #e9ecef;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Meiryo, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background: var(--bg-body); overflow: hidden; }
+
+        /* --- ホーム画面 (Office 形式) --- */
+        #appHome {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #f8f9fa; z-index: 5000; display: flex; flex-direction: column;
+        }
+        .home-header {
+            background: var(--brand-primary); color: white; padding: 18px 30px;
+            display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+        .home-container { display: flex; flex: 1; overflow: hidden; }
+        .home-sidebar { width: 240px; background: #fff; border-right: 1px solid var(--border-color); padding: 20px 10px; display: flex; flex-direction: column; gap: 8px; }
+        .home-nav-btn {
+            background: transparent; border: none; padding: 12px 16px; border-radius: 6px;
+            text-align: left; font-weight: bold; color: #444; cursor: pointer; display: flex; align-items: center; gap: 10px;
+        }
+        .home-nav-btn:hover, .home-nav-btn.active { background: var(--brand-light); color: var(--brand-primary); }
+
+        .home-content { flex: 1; padding: 30px 40px; overflow-y: auto; }
+        .section-title { font-size: 1.1rem; font-weight: bold; color: #333; margin-bottom: 15px; border-bottom: 2px solid var(--brand-primary); padding-bottom: 5px; display: inline-block; }
+        
+        .home-cards { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 35px; }
+        .home-card {
+            background: white; border: 1px solid var(--border-color); border-radius: 8px;
+            padding: 16px; cursor: pointer; text-align: center; font-weight: bold; color: var(--brand-primary);
+            width: 200px; height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s;
+        }
+        .home-card:hover { border-color: var(--brand-primary); background: var(--brand-light); transform: translateY(-2px); }
+        .home-card small { font-weight: normal; font-size: 0.75rem; color: #666; margin-top: 4px; }
+
+        .recent-list { background: white; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .recent-item {
+            padding: 12px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;
+            align-items: center; cursor: pointer; font-size: 0.9rem;
+        }
+        .recent-item:last-child { border-bottom: none; }
+        .recent-item:hover { background: #f9f9f9; }
+
+        /* --- ヘッダー・リボン風ツールバー --- */
+        .title-bar { height: 40px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 0.9rem; }
+        .btn-header { background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-header:hover { background: rgba(255,255,255,0.35); }
+
+        .toolbar { background: #fdfdfd; border-bottom: 1px solid var(--border-color); padding: 6px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .btn-tool { background: #fff; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold; color: #333; display: inline-flex; align-items: center; gap: 4px; }
+        .btn-tool:hover { background: #f0f0f0; }
+        .btn-tool.active { background: var(--brand-light); border-color: var(--brand-primary); color: var(--brand-primary); }
+
+        /* --- ワークスペース --- */
+        .workspace { flex: 1; display: flex; overflow: hidden; }
+        .sidebar { width: 220px; background: var(--office-sidebar); border-right: 1px solid var(--border-color); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .nav-item { background: white; border: 1px solid var(--border-color); padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85rem; color: #444; }
+        .nav-item.active { background: var(--brand-primary); color: white; border-color: var(--brand-primary); }
+
+        .main-content { flex: 1; position: relative; overflow: hidden; background: white; }
+
+        /* テーブルビュー */
+        .table-view { width: 100%; height: 100%; overflow: auto; padding: 16px; }
+        table { border-collapse: collapse; width: 100%; background: white; }
+        th, td { border: 1px solid var(--border-color); padding: 6px; text-align: left; }
+        th { background: #f0f0f0; color: #333; font-size: 0.85rem; }
+        td input, td select, th input { width: 100%; border: none; outline: none; background: transparent; font-size: 0.9rem; }
+
+        /* フォームビュー */
+        .form-view { width: 100%; height: 100%; background: #e5e5e5; overflow: auto; padding: 20px; display: flex; justify-content: center; }
+        .form-canvas { width: 720px; min-height: 540px; background: white; border: 1px solid #bbb; border-radius: 6px; position: relative; padding: 20px 20px 70px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        
+        #widgetArea { position: relative; width: 100%; min-height: 380px; flex: 1; border-bottom: 1px dashed #ccc; margin-bottom: 15px; }
+        .form-action-bar { display: flex; gap: 10px; align-items: center; padding-top: 10px; background: white; }
+
+        /* フィールド項目 (Widget) */
+        .widget { position: absolute; padding: 6px; border: 1px solid transparent; background: white; border-radius: 4px; min-width: 240px; }
+        .design-mode .widget { border: 1px dashed var(--brand-primary); background: var(--brand-light); cursor: move; }
+        .widget label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 3px; color: #333; }
+        .widget input, .widget select { width: 100%; padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 3px; background: white; }
+        
+        /* フィールド削除ボタン */
+        .widget-del { display: none; position: absolute; top: -8px; right: -8px; background: #d9534f; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .design-mode .widget .widget-del { display: block; }
+        .widget-del:hover { background: #c9302c; }
+
+        .export-select { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); border-radius: 4px; padding: 3px 6px; font-size: 0.85rem; font-weight: bold; cursor: pointer; outline: none; }
+        .export-select option { background: #333; color: white; }
+    </style>
+</head>
+<body>
+
+    <!-- ファイル読み込み用インプット -->
+    <input type="file" id="fileImporter" style="display:none;" accept=".nxdbase,.nxdview,.accdb,.mdb,.xlsx,.csv,.json">
+
+    <!-- ホーム画面 -->
+    <div id="appHome">
+        <div class="home-header">
+            <div>
+                <h1 style="font-size:1.4rem;">Nexis Database</h1>
+                <p style="font-size:0.8rem; opacity:0.9;">Microsoft Access 互換データフォーム＆データベース構築アプリ</p>
+            </div>
+            <a href="Nexis_OffiSuite.html" class="btn-header">◀ Nexis OffiSuite に戻る</a>
+        </div>
+        <div class="home-container">
+            <div class="home-sidebar">
+                <button class="home-nav-btn active">🏠 ホーム</button>
+                <button class="home-nav-btn" id="btnSideOpen">📂 開く</button>
+            </div>
+            <div class="home-content">
+                <div class="section-title">新規作成＆テンプレート</div>
+                <div class="home-cards">
+                    <div class="home-card" id="btnStartNew">
+                        <span style="font-size:1.5rem; margin-bottom:4px;">🗄️</span>
+                        <span>空のデータベース</span>
+                        <small>まっさらな状態から作成</small>
+                    </div>
+                    <div class="home-card" id="btnOpenFileHome">
+                        <span style="font-size:1.5rem; margin-bottom:4px;">📂</span>
+                        <span>既存ファイルを開く</span>
+                        <small>.nxdbase, .accdb, .xlsx 等</small>
+                    </div>
+                    <div class="home-card" id="btnTplStaff">
+                        <span style="font-size:1.5rem; margin-bottom:4px;">👥</span>
+                        <span>社員・顧客名簿</span>
+                        <small>基本情報・部署管理</small>
+                    </div>
+                    <div class="home-card" id="btnTplTask">
+                        <span style="font-size:1.5rem; margin-bottom:4px;">✅</span>
+                        <span>タスク・プロジェクト</span>
+                        <small>進捗・担当者・期限</small>
+                    </div>
+                    <div class="home-card" id="btnTplItem">
+                        <span style="font-size:1.5rem; margin-bottom:4px;">📦</span>
+                        <span>商品・在庫管理</span>
+                        <small>単価・在庫数・カテゴリ</small>
+                    </div>
+                </div>
+
+                <div class="section-title">最近開いたファイル</div>
+                <div class="recent-list" id="recentList">
+                    <!-- 動的挿入 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- タイトルバー -->
+    <div class="title-bar">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <a href="Nexis_OffiSuite.html" class="btn-header">◀ Nexis OffiSuite</a>
+            <button class="btn-header" id="btnHome">🏠 ホーム</button>
+            <span style="font-weight: bold;">🗄️ Database App</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn-header" id="btnOpenFile">📂 開く</button>
+            
+            <!-- エクスポート拡張子選択 -->
+            <div style="display:flex; align-items:center; gap:4px; background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:4px;">
+                <span style="font-size:0.8rem; font-weight:bold;">💾 出力形式:</span>
+                <select id="exportFormat" class="export-select">
+                    <option value="nxdbase">標準 DB (.nxdbase)</option>
+                    <option value="nxdview">フォーム Layout (.nxdview)</option>
+                    <option value="xlsx">Excel ブック (.xlsx)</option>
+                    <option value="accdb">Access DB (.accdb)</option>
+                    <option value="mdb">Access 旧形式 (.mdb)</option>
+                    <option value="csv">CSV テキスト (.csv)</option>
+                </select>
+                <button class="btn-header" id="btnExportExecute" style="background:rgba(255,255,255,0.3);">保存・実行</button>
+            </div>
+
+            <button class="btn-header" id="btnResetData">🔄 リセット</button>
+        </div>
+    </div>
+
+    <!-- リボン風ツールバー -->
+    <div class="toolbar">
+        <button class="btn-tool active" id="btnTabTable">📊 データシート表示</button>
+        <button class="btn-tool" id="btnTabForm">📋 フォーム表示</button>
+        <div style="width:1px; height:20px; background:#ccc; margin:0 4px;"></div>
+        <div id="tableBtns">
+            <button class="btn-tool" id="btnAddRow">➕ レコード追加</button>
+            <button class="btn-tool" id="btnAddCol">➕ フィールド（列）追加</button>
+        </div>
+        <div id="formBtns" style="display:none;">
+            <button class="btn-tool" id="btnToggleDesign">🛠️ デザイナーモード切替</button>
+            <button class="btn-tool" id="btnAddTxt" style="display:none;">➕ フィールド（項目）追加</button>
+        </div>
+    </div>
+
+    <!-- ワークスペース -->
+    <div class="workspace">
+        <div class="sidebar">
+            <div class="nav-item active" id="navTable">🗃️ メインテーブル</div>
+            <div class="nav-item" id="navForm">📋 登録・操作フォーム</div>
+        </div>
+
+        <div class="main-content">
+            <!-- テーブルビュー -->
+            <div class="table-view" id="viewTable">
+                <table>
+                    <thead><tr id="thGroup"></tr></thead>
+                    <tbody id="tbGroup"></tbody>
+                </table>
+            </div>
+
+            <!-- フォームビュー -->
+            <div class="form-view" id="viewForm" style="display:none;">
+                <div class="form-canvas" id="canvas">
+                    <h3 style="color:var(--brand-primary); margin-bottom:8px; font-size:1.1rem;">データ入力・閲覧フォーム</h3>
+                    <div id="recordPos" style="font-size:0.85rem; font-weight:bold; margin-bottom:15px; color:#666;"></div>
+                    
+                    <!-- フォーム要素配置エリア -->
+                    <div id="widgetArea"></div>
+
+                    <!-- 操作バー（下部固定） -->
+                    <div class="form-action-bar">
+                        <button class="btn-tool" id="btnFormPrev">◀ 前へ</button>
+                        <button class="btn-tool" id="btnFormNext">次へ ▶</button>
+                        <button class="btn-tool" id="btnFormAdd" style="background:var(--brand-primary); color:white;">➕ 新規レコード追加</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'nexis_db_store';
+        const RECENT_KEY = 'nexis_db_recent';
+
+        // テンプレート定義
+        const templates = {
+            empty: {
+                fields: [{ name: "ID", type: "number" }, { name: "項目1", type: "text" }],
+                rows: [["", ""]],
+                layout: [
+                    { id: "w_0", colIdx: 0, label: "ID", left: 20, top: 20 },
+                    { id: "w_1", colIdx: 1, label: "項目1", left: 20, top: 90 }
+                ]
+            },
+            staff: {
+                fields: [
+                    { name: "社員ID", type: "number" },
+                    { name: "氏名", type: "text" },
+                    { name: "入社日", type: "date" },
+                    { name: "部署", type: "select", options: ["開発部", "営業部", "総務部", "企画部"] },
+                    { name: "メール", type: "text" }
+                ],
+                rows: [
+                    ["101", "山田 太郎", "2024-04-01", "開発部", "yamada@example.com"],
+                    ["102", "佐藤 花子", "2025-01-15", "営業部", "sato@example.com"]
+                ],
+                layout: [
+                    { id: "w_0", colIdx: 0, label: "社員ID", left: 20, top: 20 },
+                    { id: "w_1", colIdx: 1, label: "氏名", left: 20, top: 90 },
+                    { id: "w_2", colIdx: 2, label: "入社日", left: 20, top: 160 },
+                    { id: "w_3", colIdx: 3, label: "部署", left: 20, top: 230 },
+                    { id: "w_4", colIdx: 4, label: "メール", left: 20, top: 300 }
+                ]
+            },
+            task: {
+                fields: [
+                    { name: "タスクID", type: "number" },
+                    { name: "タスク名", type: "text" },
+                    { name: "担当者", type: "text" },
+                    { name: "期限", type: "date" },
+                    { name: "ステータス", type: "select", options: ["未対応", "進行中", "完了"] }
+                ],
+                rows: [
+                    ["1", "新画面デザイン提案", "鈴木", "2026-10-01", "進行中"],
+                    ["2", "データベース構成見直し", "高橋", "2026-10-15", "未対応"]
+                ],
+                layout: [
+                    { id: "w_0", colIdx: 0, label: "タスクID", left: 20, top: 20 },
+                    { id: "w_1", colIdx: 1, label: "タスク名", left: 20, top: 90 },
+                    { id: "w_2", colIdx: 2, label: "担当者", left: 20, top: 160 },
+                    { id: "w_3", colIdx: 3, label: "期限", left: 20, top: 230 },
+                    { id: "w_4", colIdx: 4, label: "ステータス", left: 20, top: 300 }
+                ]
+            },
+            item: {
+                fields: [
+                    { name: "商品コード", type: "text" },
+                    { name: "商品名", type: "text" },
+                    { name: "カテゴリ", type: "select", options: ["文具", "PC機器", "家具", "消耗品"] },
+                    { name: "単価", type: "number" },
+                    { name: "在庫数", type: "number" }
+                ],
+                rows: [
+                    ["A-001", "ワイヤレスマウス", "PC機器", "3500", "15"],
+                    ["B-102", "オフィスチェア", "家具", "18000", "4"]
+                ],
+                layout: [
+                    { id: "w_0", colIdx: 0, label: "商品コード", left: 20, top: 20 },
+                    { id: "w_1", colIdx: 1, label: "商品名", left: 20, top: 90 },
+                    { id: "w_2", colIdx: 2, label: "カテゴリ", left: 20, top: 160 },
+                    { id: "w_3", colIdx: 3, label: "単価", left: 20, top: 230 },
+                    { id: "w_4", colIdx: 4, label: "在庫数", left: 20, top: 300 }
+                ]
+            }
+        };
+
+        let dbData = null;
+        let currentIdx = 0;
+        let isDesignMode = false;
+
+        // データ読込
+        function loadData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    dbData = JSON.parse(saved);
+                    return;
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+            dbData = JSON.parse(JSON.stringify(templates.staff));
+        }
+
+        // データ保存
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(dbData));
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        // 最近開いたファイルの管理
+        function addRecentFile(fileName) {
+            let recent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+            const now = new Date().toLocaleString('ja-JP');
+            recent = recent.filter(item => item.name !== fileName);
+            recent.unshift({ name: fileName, date: now });
+            if (recent.length > 5) recent.pop();
+            localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+            renderRecentList();
+        }
+
+        function renderRecentList() {
+            const container = document.getElementById('recentList');
+            const recent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+            
+            if (recent.length === 0) {
+                container.innerHTML = '<div style="padding:15px; color:#888; font-size:0.85rem;">最近開いたファイルはありません。</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            recent.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'recent-item';
+                div.innerHTML = `
+                    <div>
+                        <strong style="color:var(--brand-primary);">📄 ${item.name}</strong>
+                    </div>
+                    <span style="color:#888; font-size:0.8rem;">${item.date}</span>
+                `;
+                div.onclick = () => {
+                    document.getElementById('appHome').style.display = 'none';
+                    showView('table');
+                };
+                container.appendChild(div);
+            });
+        }
+
+        // ビュー切り替え
+        function showView(viewName) {
+            const isTable = viewName === 'table';
+            document.getElementById('viewTable').style.display = isTable ? 'block' : 'none';
+            document.getElementById('viewForm').style.display = isTable ? 'none' : 'flex';
+            
+            document.getElementById('btnTabTable').classList.toggle('active', isTable);
+            document.getElementById('btnTabForm').classList.toggle('active', !isTable);
+            document.getElementById('navTable').classList.toggle('active', isTable);
+            document.getElementById('navForm').classList.toggle('active', !isTable);
+
+            document.getElementById('tableBtns').style.display = isTable ? 'block' : 'none';
+            document.getElementById('formBtns').style.display = isTable ? 'none' : 'block';
+
+            if (isTable) {
+                renderTable();
+            } else {
+                renderForm();
+            }
+        }
+
+        // 入力用エレメント生成
+        function createInputElement(field, val, onChangeCallback) {
+            let el;
+            if (field.type === 'select') {
+                el = document.createElement('select');
+                const defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.innerText = '-- 選択 --';
+                el.appendChild(defaultOpt);
+
+                (field.options || []).forEach(optVal => {
+                    const opt = document.createElement('option');
+                    opt.value = optVal;
+                    opt.innerText = optVal;
+                    if (optVal === val) opt.selected = true;
+                    el.appendChild(opt);
+                });
+            } else {
+                el = document.createElement('input');
+                el.type = field.type || 'text';
+                el.value = val || '';
+            }
+
+            el.addEventListener('change', (e) => {
+                onChangeCallback(e.target.value);
+                saveData();
+            });
+            if (field.type !== 'select') {
+                el.addEventListener('input', (e) => {
+                    onChangeCallback(e.target.value);
+                    saveData();
+                });
+            }
+            return el;
+        }
+
+        // テーブル描画
+        function renderTable() {
+            const thGroup = document.getElementById('thGroup');
+            const tbGroup = document.getElementById('tbGroup');
+
+            thGroup.innerHTML = '';
+            dbData.fields.forEach((field, cIdx) => {
+                const th = document.createElement('th');
+                const inp = document.createElement('input');
+                inp.value = field.name;
+                inp.title = `型: ${field.type}`;
+                inp.onchange = (e) => {
+                    dbData.fields[cIdx].name = e.target.value;
+                    const l = dbData.layout.find(w => w.colIdx === cIdx);
+                    if (l) l.label = e.target.value;
+                    saveData();
+                };
+                th.appendChild(inp);
+                thGroup.appendChild(th);
+            });
+
+            tbGroup.innerHTML = '';
+            dbData.rows.forEach((row, rIdx) => {
+                const tr = document.createElement('tr');
+                row.forEach((cell, cIdx) => {
+                    const td = document.createElement('td');
+                    const field = dbData.fields[cIdx] || { type: 'text' };
+                    const inputEl = createInputElement(field, cell, (newVal) => {
+                        dbData.rows[rIdx][cIdx] = newVal;
+                    });
+                    td.appendChild(inputEl);
+                    tr.appendChild(td);
+                });
+                tbGroup.appendChild(tr);
+            });
+        }
+
+        // フォーム描画
+        function renderForm() {
+            const area = document.getElementById('widgetArea');
+            area.innerHTML = '';
+
+            if (dbData.rows.length === 0) {
+                dbData.rows.push(new Array(dbData.fields.length).fill(''));
+            }
+
+            if (currentIdx >= dbData.rows.length) currentIdx = dbData.rows.length - 1;
+            if (currentIdx < 0) currentIdx = 0;
+
+            document.getElementById('recordPos').innerText = `レコード: ${currentIdx + 1} / ${dbData.rows.length}`;
+
+            const currentRow = dbData.rows[currentIdx] || [];
+            let maxBottom = 300;
+
+            dbData.layout.forEach(w => {
+                const div = document.createElement('div');
+                div.className = 'widget';
+                div.style.left = w.left + 'px';
+                div.style.top = w.top + 'px';
+
+                if (isDesignMode) {
+                    div.classList.add('design-mode');
+                }
+
+                const field = dbData.fields[w.colIdx] || { name: w.label || "無題", type: 'text' };
+                const lbl = document.createElement('label');
+                lbl.innerText = w.label || field.name;
+                
+                const inp = createInputElement(field, currentRow[w.colIdx], (newVal) => {
+                    dbData.rows[currentIdx][w.colIdx] = newVal;
+                });
+
+                div.appendChild(lbl);
+                div.appendChild(inp);
+
+                // フィールド削除ボタン
+                if (isDesignMode) {
+                    const del = document.createElement('button');
+                    del.className = 'widget-del';
+                    del.innerText = '✕';
+                    del.title = 'このフィールドを削除';
+                    del.onclick = (e) => {
+                        e.stopPropagation();
+                        if (confirm(`フィールド「${w.label || field.name}」を削除しますか？`)) {
+                            deleteField(w.colIdx);
+                        }
+                    };
+                    div.appendChild(del);
+                    makeWidgetDraggable(div, w);
+                }
+
+                area.appendChild(div);
+
+                if (w.top + 70 > maxBottom) {
+                    maxBottom = w.top + 70;
+                }
+            });
+
+            area.style.height = maxBottom + 'px';
+        }
+
+        // フィールドの完全削除
+        function deleteField(colIdx) {
+            dbData.fields.splice(colIdx, 1);
+            dbData.rows.forEach(r => r.splice(colIdx, 1));
+            dbData.layout = dbData.layout.filter(w => w.colIdx !== colIdx);
+            
+            dbData.layout.forEach(w => {
+                if (w.colIdx > colIdx) w.colIdx--;
+            });
+
+            saveData();
+            renderForm();
+        }
+
+        // ドラッグ移動処理
+        function makeWidgetDraggable(el, widgetObj) {
+            let startX = 0, startY = 0;
+
+            el.onmousedown = (e) => {
+                if (['INPUT', 'SELECT', 'BUTTON'].includes(e.target.tagName) || e.target.classList.contains('widget-del')) return;
+                e.preventDefault();
+
+                startX = e.clientX - widgetObj.left;
+                startY = e.clientY - widgetObj.top;
+
+                const onMouseMove = (me) => {
+                    let newLeft = me.clientX - startX;
+                    let newTop = me.clientY - startY;
+
+                    if (newLeft < 0) newLeft = 0;
+                    if (newTop < 0) newTop = 0;
+
+                    widgetObj.left = newLeft;
+                    widgetObj.top = newTop;
+                    el.style.left = newLeft + 'px';
+                    el.style.top = newTop + 'px';
+                };
+
+                const onMouseUp = () => {
+                    saveData();
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    renderForm();
+                };
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            };
+        }
+
+        // ダウンロード汎用関数
+        function downloadFile(content, fileName, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+            addRecentFile(fileName);
+        }
+
+        // 多彩な形式へのエクスポート実行
+        function handleExport() {
+            const fmt = document.getElementById('exportFormat').value;
+            const timestamp = new Date().toISOString().slice(0,10);
+
+            if (fmt === 'nxdbase') {
+                downloadFile(JSON.stringify(dbData, null, 2), `database_${timestamp}.nxdbase`, 'application/json');
+            } else if (fmt === 'nxdview') {
+                downloadFile(JSON.stringify(dbData.layout, null, 2), `form_layout_${timestamp}.nxdview`, 'application/json');
+            } else if (fmt === 'csv') {
+                let csvStr = dbData.fields.map(f => f.name).join(',') + '\n';
+                dbData.rows.forEach(r => {
+                    csvStr += r.map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',') + '\n';
+                });
+                downloadFile(csvStr, `database_${timestamp}.csv`, 'text/csv;charset=utf-8;');
+            } else if (fmt === 'xlsx' || fmt === 'accdb' || fmt === 'mdb') {
+                // 各Officeアプリ拡張子への互換データ出力
+                let csvStr = dbData.fields.map(f => f.name).join(',') + '\n';
+                dbData.rows.forEach(r => {
+                    csvStr += r.map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',') + '\n';
+                });
+                const mime = fmt === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/msaccess';
+                downloadFile(csvStr, `database_${timestamp}.${fmt}`, mime);
+            }
+        }
+
+        // インポート処理
+        function handleFileImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            reader.onload = (evt) => {
+                const content = evt.target.result;
+                try {
+                    if (ext === 'nxdbase' || ext === 'json') {
+                        dbData = JSON.parse(content);
+                        saveData();
+                    } else if (['csv', 'accdb', 'mdb', 'xlsx'].includes(ext)) {
+                        const lines = content.split(/\r\n|\n/).filter(l => l.trim() !== '');
+                        if (lines.length > 0) {
+                            const headers = lines[0].split(',').map(h => h.replace(/^"(.*)"$/, '$1').trim());
+                            dbData.fields = headers.map(h => ({ name: h, type: 'text' }));
+                            dbData.rows = lines.slice(1).map(l => l.split(',').map(v => v.replace(/^"(.*)"$/, '$1').trim()));
+                            dbData.layout = headers.map((h, i) => ({
+                                id: 'w_' + i, colIdx: i, label: h, left: 20, top: 20 + (i * 70)
+                            }));
+                            saveData();
+                        }
+                    }
+                    addRecentFile(file.name);
+                    document.getElementById('appHome').style.display = 'none';
+                    showView('table');
+                } catch (err) {
+                    alert('ファイルの読み込みに失敗しました: ' + err.message);
+                }
+            };
+
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        // テンプレートからの起動
+        function applyTemplate(tplKey, fileName) {
+            dbData = JSON.parse(JSON.stringify(templates[tplKey]));
+            currentIdx = 0;
+            saveData();
+            addRecentFile(fileName);
+            document.getElementById('appHome').style.display = 'none';
+            showView('table');
+        }
+
+        // 初期化バインド
+        window.onload = () => {
+            loadData();
+            renderRecentList();
+
+            const fileImporter = document.getElementById('fileImporter');
+            fileImporter.onchange = handleFileImport;
+
+            document.getElementById('btnOpenFile').onclick = () => fileImporter.click();
+            document.getElementById('btnOpenFileHome').onclick = () => fileImporter.click();
+            document.getElementById('btnSideOpen').onclick = () => fileImporter.click();
+
+            // 保存・エクスポート実行
+            document.getElementById('btnExportExecute').onclick = handleExport;
+
+            // スタート＆テンプレート選択
+            document.getElementById('btnStartNew').onclick = () => applyTemplate('empty', '新規データベース.nxdbase');
+            document.getElementById('btnTplStaff').onclick = () => applyTemplate('staff', '社員・顧客名簿.nxdbase');
+            document.getElementById('btnTplTask').onclick = () => applyTemplate('task', 'タスク管理.nxdbase');
+            document.getElementById('btnTplItem').onclick = () => applyTemplate('item', '商品・在庫管理.nxdbase');
+
+            document.getElementById('btnHome').onclick = () => {
+                document.getElementById('appHome').style.display = 'flex';
+            };
+
+            document.getElementById('btnResetData').onclick = () => {
+                if (confirm('データを初期状態に戻しますか？')) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    loadData();
+                    renderTable();
+                    renderForm();
+                }
+            };
+
+            // フォーム内ボタン
+            document.getElementById('btnFormPrev').onclick = () => { if (currentIdx > 0) { currentIdx--; renderForm(); } };
+            document.getElementById('btnFormNext').onclick = () => { if (currentIdx < dbData.rows.length - 1) { currentIdx++; renderForm(); } };
+            document.getElementById('btnFormAdd').onclick = () => {
+                dbData.rows.push(new Array(dbData.fields.length).fill(''));
+                currentIdx = dbData.rows.length - 1;
+                saveData();
+                renderForm();
+            };
+
+            // ビュー切替
+            document.getElementById('btnTabTable').onclick = () => showView('table');
+            document.getElementById('navTable').onclick = () => showView('table');
+            document.getElementById('btnTabForm').onclick = () => showView('form');
+            document.getElementById('navForm').onclick = () => showView('form');
+
+            // フィールド追加
+            document.getElementById('btnAddRow').onclick = () => {
+                dbData.rows.push(new Array(dbData.fields.length).fill(''));
+                saveData();
+                renderTable();
+            };
+
+            const addColumnHandler = () => {
+                const name = prompt('追加する項目名を入力してください:');
+                if (!name) return;
+
+                const typeChoice = prompt('型を指定してください (1:テキスト, 2:数値, 3:日付, 4:ドロップダウン)', '1');
+                let type = 'text';
+                let options = [];
+
+                if (typeChoice === '2') type = 'number';
+                else if (typeChoice === '3') type = 'date';
+                else if (typeChoice === '4') {
+                    type = 'select';
+                    const opts = prompt('選択肢をカンマ区切りで入力してください:', '選択肢A,選択肢B,選択肢C');
+                    if (opts) options = opts.split(',').map(s => s.trim());
+                }
+
+                const newIdx = dbData.fields.length;
+                dbData.fields.push({ name, type, options });
+                dbData.rows.forEach(r => r.push(''));
+
+                dbData.layout.push({
+                    id: 'w_' + Date.now(),
+                    colIdx: newIdx,
+                    label: name,
+                    left: 20,
+                    top: 20 + (newIdx * 70)
+                });
+
+                saveData();
+                if (document.getElementById('viewTable').style.display !== 'none') {
+                    renderTable();
+                } else {
+                    renderForm();
+                }
+            };
+
+            document.getElementById('btnAddCol').onclick = addColumnHandler;
+            document.getElementById('btnAddTxt').onclick = addColumnHandler;
+
+            // デザイナーモード切替
+            document.getElementById('btnToggleDesign').onclick = () => {
+                isDesignMode = !isDesignMode;
+                document.getElementById('btnToggleDesign').classList.toggle('active', isDesignMode);
+                document.getElementById('btnAddTxt').style.display = isDesignMode ? 'inline-block' : 'none';
+                renderForm();
+            };
+        };
+    </script>
+</body>
+</html>

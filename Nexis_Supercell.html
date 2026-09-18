@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexis Supercell - Complete Edition</title>
+    <!-- グラフ描画 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Excelパース & 出力用 SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --brand-primary: #107c41;
+            --brand-dark: #0b572e;
+            --bg-body: #f3f3f3;
+            --border-color: #d4d4d4;
+            --header-bg: #f8f9fa;
+            --grid-line: #ccc;
+            --select-bg: rgba(16, 124, 65, 0.15);
+            --select-border: #107c41;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Meiryo, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background: var(--bg-body); overflow: hidden; user-select: none; }
+
+        /* ホーム画面 */
+        .app-home-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #f8f9fa; z-index: 2000; display: flex; flex-direction: column;
+        }
+        .home-header { background: var(--brand-primary); color: white; padding: 24px 48px; display: flex; justify-content: space-between; align-items: center; }
+        .home-header h1 { font-size: 2.2rem; font-weight: 700; }
+        .home-main { padding: 32px 48px; flex: 1; overflow-y: auto; display: flex; gap: 40px; }
+        .home-left, .home-right { flex: 1; display: flex; flex-direction: column; gap: 20px; }
+        .section-title { font-size: 1.2rem; font-weight: 700; color: #444; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
+        
+        .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+        .template-card { background: white; border: 1px solid var(--border-color); border-radius: 8px; height: 120px; padding: 12px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
+        .template-card:hover { border-color: var(--brand-primary); transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .template-preview { background: #eef7f2; height: 60px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--brand-primary); }
+
+        .drop-zone { border: 2px dashed var(--brand-primary); border-radius: 8px; padding: 24px; text-align: center; background: #f0fdf4; cursor: pointer; transition: 0.2s; }
+        .drop-zone:hover { background: #e2f8e9; }
+
+        .recent-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; }
+        .recent-item { background: white; border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .recent-item:hover { border-color: var(--brand-primary); background: #f9fdfa; }
+
+        /* タイトルバー */
+        .title-bar { height: 42px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+        .title-bar .app-info { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+        .doc-title-input { 
+            background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); 
+            color: white; font-weight: bold; font-size: 0.95rem; padding: 4px 10px; 
+            border-radius: 4px; outline: none; width: 220px; transition: 0.2s;
+        }
+        .doc-title-input:focus { background: white; color: #333; border-color: white; }
+        .btn-header { background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .btn-header:hover { background: rgba(255,255,255,0.35); }
+
+        /* リボンUI */
+        .ribbon-container { background: white; border-bottom: 1px solid var(--border-color); }
+        .ribbon-tabs { display: flex; background: #f3f4f8; border-bottom: 1px solid var(--border-color); padding-left: 16px; }
+        .tab-btn { padding: 8px 20px; border: none; background: transparent; cursor: pointer; font-size: 0.88rem; font-weight: 600; color: #505050; border-bottom: 3px solid transparent; }
+        .tab-btn.active { color: var(--brand-primary); border-bottom-color: var(--brand-primary); background: #ffffff; }
+
+        .ribbon-toolbar { display: flex; padding: 6px 16px; gap: 16px; align-items: center; height: 75px; overflow-x: auto; }
+        .tool-group { display: flex; flex-direction: column; justify-content: space-between; padding-right: 14px; border-right: 1px solid var(--border-color); height: 100%; flex-shrink: 0; }
+        .tool-group-title { font-size: 0.7rem; color: #888; text-align: center; font-weight: 600; }
+        .tool-row { display: flex; align-items: center; gap: 4px; }
+        .btn-tool { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.85rem; height: 28px; color: #333; display: flex; align-items: center; gap: 4px; }
+        .btn-tool:hover { background: #eef1f5; border-color: #c0c4cc; }
+
+        /* 数式バー & サジェスト */
+        .formula-bar { display: flex; align-items: center; height: 32px; background: white; border-bottom: 1px solid var(--border-color); padding: 0 8px; gap: 8px; font-size: 0.85rem; position: relative; z-index: 100; }
+        .cell-address { width: 60px; font-weight: bold; text-align: center; border-right: 1px solid var(--border-color); padding-right: 8px; color: #555; }
+        .fx-label { font-weight: bold; font-style: italic; color: var(--brand-primary); padding: 0 4px; }
+        .formula-input-container { flex: 1; position: relative; display: flex; align-items: center; }
+        .formula-input { width: 100%; border: none; outline: none; font-size: 0.9rem; font-family: monospace; }
+
+        .suggest-box {
+            position: absolute; background: white; border: 1px solid var(--border-color);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18); max-height: 200px; overflow-y: auto; width: 320px;
+            z-index: 3000; display: none; border-radius: 4px;
+        }
+        .suggest-item { padding: 8px 12px; cursor: pointer; font-size: 0.82rem; font-family: monospace; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0; }
+        .suggest-item:hover { background: #e8f5e9; color: var(--brand-primary); }
+
+        /* ワークスペース */
+        .grid-workspace { flex: 1; overflow: auto; position: relative; background: #ffffff; }
+        .excel-table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+        .excel-table th, .excel-table td { border: 1px solid var(--grid-line); font-size: 0.85rem; height: 26px; min-width: 80px; text-align: left; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .excel-table th { background: var(--header-bg); font-weight: 600; color: #666; text-align: center; position: sticky; top: 0; z-index: 10; user-select: none; }
+        .excel-table th.row-header { left: 0; z-index: 11; width: 40px; min-width: 40px; }
+        
+        .excel-table td { background: white; outline: none; }
+        .excel-table td.selected { background-color: var(--select-bg) !important; }
+        .excel-table td.active-cell { border: 2px solid var(--select-border) !important; z-index: 5; }
+
+        /* 移動可能なフローティンググラフ */
+        .draggable-chart-window {
+            position: absolute; top: 60px; left: 120px; width: 460px; height: 300px;
+            background: white; border: 1px solid var(--border-color); border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 500; display: flex; flex-direction: column;
+            resize: both; overflow: hidden;
+        }
+        .chart-drag-header {
+            background: #f0f4f1; padding: 8px 12px; font-weight: bold; font-size: 0.85rem;
+            color: var(--brand-dark); cursor: move; display: flex; justify-content: space-between;
+            align-items: center; border-bottom: 1px solid var(--border-color);
+        }
+
+        /* ステータスバー & マクロ表示 */
+        .status-bar { height: 28px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 0.78rem; font-weight: 500; }
+        .macro-active-pulse { animation: pulse 1s infinite alternate; background: #e53935 !important; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+        .macro-running-pulse { animation: pulseGreen 0.5s infinite alternate; background: #2e7d32 !important; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+        @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+        @keyframes pulseGreen { from { background: #2e7d32; } to { background: #43a047; } }
+    </style>
+</head>
+<body>
+
+    <input type="file" id="fileInput" accept=".scell,.csv,.xlsx,.xls" style="display:none;" onchange="handleFileSelect(event)">
+
+    <div class="suggest-box" id="globalSuggestBox"></div>
+
+    <!-- ホーム画面 -->
+    <div class="app-home-overlay" id="appHome">
+        <div class="home-header">
+            <div>
+                <h1>Nexis Supercell</h1>
+                <p>完全拡張スプレッドシート・エンジン</p>
+            </div>
+            <button class="btn-header" style="background:rgba(255,255,255,0.3);" onclick="location.href='Nexis_OffiSuite.html'">← Suiteポータルへ</button>
+        </div>
+        <div class="home-main">
+            <div class="home-left">
+                <div class="section-title">新規作成</div>
+                <div class="template-grid">
+                    <div class="template-card" onclick="startNewSheet('blank')">
+                        <div class="template-preview">空白</div>
+                        <div style="font-weight:700;">新規スプレッドシート</div>
+                    </div>
+                    <div class="template-card" onclick="startNewSheet('budget')">
+                        <div class="template-preview">売上</div>
+                        <div style="font-weight:700;">売上集計サンプル</div>
+                    </div>
+                </div>
+
+                <div class="section-title" style="margin-top:20px;">ファイルを開く</div>
+                <div class="drop-zone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault()" ondrop="handleFileDrop(event)">
+                    📁 ファイルをドラッグ＆ドロップ<br>または <span style="text-decoration:underline;">参照して開く</span>
+                    <div style="font-size:0.75rem; color:#666; margin-top:6px;">対応: .xlsx / .xls / .scell / .csv</div>
+                </div>
+            </div>
+
+            <div class="home-right">
+                <div class="section-title">最近開いたファイル</div>
+                <div class="recent-list" id="recentList">
+                    <div style="color:#888; font-size:0.85rem;">履歴はありません</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- タイトルバー -->
+    <div class="title-bar">
+        <div class="app-info">
+            <button class="btn-header" onclick="showHome()">🏠 ホーム</button>
+			<button class="btn-header" onclick="location.href='Nexis_OffiSuite.html'">← Suiteポータルへ</button>
+            <span>📊</span>
+            <!-- ファイル名変更可能な入力ボックス -->
+            <input type="text" id="docName" class="doc-title-input" value="無題のブック" onchange="onFileNameChange(this)" placeholder="ファイル名を入力">
+        </div>
+        <div style="display:flex; gap:6px;">
+            <button class="btn-header" onclick="document.getElementById('fileInput').click()">📁 開く</button>
+            <button class="btn-header" onclick="saveScellFile()">💾 .scell 保存</button>
+            <button class="btn-header" onclick="exportXLSX()">📗 .xlsx 保存</button>
+            <button class="btn-header" onclick="exportCSV()">📄 CSV 出力</button>
+            <button class="btn-header" onclick="printTable()">🖨️ 印刷</button>
+        </div>
+    </div>
+
+    <!-- リボンバー -->
+    <div class="ribbon-container">
+        <div class="ribbon-tabs">
+            <button class="tab-btn active">ホーム</button>
+        </div>
+        <div class="ribbon-toolbar">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="copySelection()">📋 コピー</button>
+                    <button class="btn-tool" onclick="pasteSelection()">📋 貼り付け</button>
+                </div>
+                <div class="tool-group-title">クリップボード</div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="applyBatchStyle('fontWeight', 'bold')"><b>B</b></button>
+                    <button class="btn-tool" onclick="applyBatchStyle('fontStyle', 'italic')"><i>I</i></button>
+                    <button class="btn-tool" onclick="applyBatchStyle('textDecoration', 'underline')"><u>U</u></button>
+                    <input type="color" onchange="applyBatchStyle('color', this.value)" style="width:24px; height:24px; border:none; cursor:pointer;" title="文字色">
+                    <input type="color" onchange="applyBatchStyle('backgroundColor', this.value)" value="#ffffff" style="width:24px; height:24px; border:none; cursor:pointer;" title="背景色">
+                </div>
+                <div class="tool-group-title">スタイル</div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="addNewRow()">➕ 行追加</button>
+                    <button class="btn-tool" onclick="addNewColumn()">➕ 列追加</button>
+                </div>
+                <div class="tool-group-title">セル操作</div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="applyAutoFunction('SUM')">Σ 合計</button>
+                    <button class="btn-tool" onclick="applyAutoFunction('AVERAGE')">x̄ 平均</button>
+                    <button class="btn-tool" onclick="applyAutoFunction('COUNT')">123 個数</button>
+                </div>
+                <div class="tool-group-title">自動集計</div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="createFloatingChart('bar')">📊 棒グラフ</button>
+                    <button class="btn-tool" onclick="createFloatingChart('line')">📈 折れ線</button>
+                    <button class="btn-tool" onclick="createFloatingChart('pie')">🍕 円グラフ</button>
+                </div>
+                <div class="tool-group-title">移動可能グラフ</div>
+            </div>
+
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" id="macroRecBtn" onclick="toggleMacroRecord()" style="color:#c62828;">🔴 録画</button>
+                    <button class="btn-tool" onclick="playMacro()">▶ 実行</button>
+                    <button class="btn-tool" onclick="clearMacro()">🗑️ 削除</button>
+                </div>
+                <div class="tool-group-title">マクロ自動化</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数式バー -->
+    <div class="formula-bar">
+        <div class="cell-address" id="activeCellAddress">A1</div>
+        <div class="fx-label">fx</div>
+        <div class="formula-input-container">
+            <input type="text" class="formula-input" id="formulaInput" placeholder="値または数式を入力" oninput="showSuggestForInput(this, event)" onchange="commitFormulaInput(this.value)">
+        </div>
+    </div>
+
+    <!-- ワークスペース -->
+    <div class="grid-workspace" id="gridWorkspace">
+        <table class="excel-table" id="excelTable">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- ステータスバー -->
+    <div class="status-bar">
+        <div>選択範囲: <span id="selectionRange">A1</span> (合計: <span id="selectionSum">0</span>)</div>
+        <div>マクロ状態: <span id="macroStatusBadge">停止中</span></div>
+    </div>
+
+    <script>
+        let rowCount = 40;
+        let colCount = 20;
+        let dataStore = {}; 
+
+        let isMouseDown = false;
+        let startCell = { r: 0, c: 0 };
+        let endCell = { r: 0, c: 0 };
+        let activeCell = { r: 0, c: 0 };
+        let clipboardData = null;
+
+        let isRecordingMacro = false;
+        let macroLogs = [];
+
+        const FUNCTION_LIST = [
+            { name: 'SUM', desc: '範囲の合計を計算' },
+            { name: 'AVERAGE', desc: '範囲の平均を計算' },
+            { name: 'COUNT', desc: '数値セルの個数をカウント' },
+            { name: 'MAX', desc: '範囲内の最大値' },
+            { name: 'MIN', desc: '範囲内の最小値' }
+        ];
+
+        function getColName(c) {
+            let str = "";
+            while (c >= 0) {
+                str = String.fromCharCode((c % 26) + 65) + str;
+                c = Math.floor(c / 26) - 1;
+            }
+            return str;
+        }
+
+        function getCellId(r, c) { return `${getColName(c)}${r + 1}`; }
+
+        function getCurrentRangeStr() {
+            const minR = Math.min(startCell.r, endCell.r);
+            const maxR = Math.max(startCell.r, endCell.r);
+            const minC = Math.min(startCell.c, endCell.c);
+            const maxC = Math.max(startCell.c, endCell.c);
+            const startId = getCellId(minR, minC);
+            const endId = getCellId(maxR, maxC);
+            return startId === endId ? startId : `${startId}:${endId}`;
+        }
+
+        function buildGrid() {
+            const head = document.getElementById('tableHead');
+            const body = document.getElementById('tableBody');
+            head.innerHTML = ''; body.innerHTML = '';
+
+            let trHtml = '<tr><th class="row-header"></th>';
+            for (let c = 0; c < colCount; c++) trHtml += `<th>${getColName(c)}</th>`;
+            trHtml += '</tr>';
+            head.innerHTML = trHtml;
+
+            for (let r = 0; r < rowCount; r++) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<th class="row-header">${r + 1}</th>`;
+                for (let c = 0; c < colCount; c++) {
+                    const td = document.createElement('td');
+                    td.id = `cell_${r}_${c}`;
+                    td.addEventListener('mousedown', () => onCellMouseDown(r, c));
+                    td.addEventListener('mouseover', () => onCellMouseOver(r, c));
+                    td.addEventListener('dblclick', () => enableCellEdit(r, c));
+                    tr.appendChild(td);
+                }
+                body.appendChild(tr);
+            }
+            document.addEventListener('mouseup', () => { isMouseDown = false; });
+        }
+
+        function addNewRow() { rowCount++; buildGrid(); recalculateAll(); }
+        function addNewColumn() { colCount++; buildGrid(); recalculateAll(); }
+
+        function onCellMouseDown(r, c) {
+            isMouseDown = true;
+            startCell = { r, c }; endCell = { r, c }; activeCell = { r, c };
+            updateSelection();
+        }
+
+        function onCellMouseOver(r, c) {
+            if (isMouseDown) { endCell = { r, c }; updateSelection(); }
+        }
+
+        function updateSelection() {
+            const minR = Math.min(startCell.r, endCell.r);
+            const maxR = Math.max(startCell.r, endCell.r);
+            const minC = Math.min(startCell.c, endCell.c);
+            const maxC = Math.max(startCell.c, endCell.c);
+
+            document.querySelectorAll('#excelTable td').forEach(td => td.classList.remove('selected', 'active-cell'));
+
+            let sum = 0;
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    const td = document.getElementById(`cell_${r}_${c}`);
+                    if (td) {
+                        td.classList.add('selected');
+                        const id = getCellId(r, c);
+                        if (dataStore[id] && !isNaN(parseFloat(dataStore[id].val))) {
+                            sum += parseFloat(dataStore[id].val);
+                        }
+                    }
+                }
+            }
+            const activeTd = document.getElementById(`cell_${activeCell.r}_${activeCell.c}`);
+            if (activeTd) activeTd.classList.add('active-cell');
+
+            const activeId = getCellId(activeCell.r, activeCell.c);
+            document.getElementById('activeCellAddress').textContent = activeId;
+            document.getElementById('formulaInput').value = dataStore[activeId] ? dataStore[activeId].raw : '';
+            document.getElementById('selectionRange').textContent = getCurrentRangeStr();
+            document.getElementById('selectionSum').textContent = sum.toFixed(2).replace(/\.00$/, '');
+        }
+
+        /* -----------------------------------
+           💡 ファイル名取得ヘルパー
+        ----------------------------------- */
+        function getBaseFileName() {
+            let name = document.getElementById('docName').value.trim();
+            if (!name) name = "無題のブック";
+            return name.replace(/\.(scell|csv|xlsx|xls)$/i, '');
+        }
+
+        function onFileNameChange(elem) {
+            if (!elem.value.trim()) elem.value = "無題のブック";
+        }
+
+        /* -----------------------------------
+           💡 サジェスト表示・適用
+        ----------------------------------- */
+        function showSuggestForInput(inputElem, e) {
+            const box = document.getElementById('globalSuggestBox');
+            const val = inputElem.value || inputElem.textContent;
+
+            if (val.startsWith('=')) {
+                const query = val.substring(1).toUpperCase();
+                const matched = FUNCTION_LIST.filter(f => f.name.startsWith(query));
+
+                if (matched.length > 0) {
+                    const rect = inputElem.getBoundingClientRect();
+                    box.style.top = (rect.bottom + window.scrollY) + 'px';
+                    box.style.left = (rect.left + window.scrollX) + 'px';
+
+                    box.innerHTML = matched.map(f => `
+                        <div class="suggest-item" onclick="applySuggestToInput('${f.name}')">
+                            <div>
+                                <strong>=${f.name}(<span style="color:#107c41;">${getCurrentRangeStr()}</span>)</strong>
+                                <div style="font-size:0.72rem; color:#666;">${f.desc}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                    box.style.display = 'block';
+                    return;
+                }
+            }
+            box.style.display = 'none';
+        }
+
+        function applySuggestToInput(funcName) {
+            const formula = `=${funcName}(${getCurrentRangeStr()})`;
+            document.getElementById('formulaInput').value = formula;
+            document.getElementById('globalSuggestBox').style.display = 'none';
+            commitCellData(activeCell.r, activeCell.c, formula);
+        }
+
+        function enableCellEdit(r, c) {
+            const td = document.getElementById(`cell_${r}_${c}`);
+            const id = getCellId(r, c);
+            td.contentEditable = "true"; td.focus();
+            td.textContent = dataStore[id] ? dataStore[id].raw : '';
+
+            const onInput = (e) => showSuggestForInput(td, e);
+            const onBlur = () => {
+                td.contentEditable = "false";
+                document.getElementById('globalSuggestBox').style.display = 'none';
+                commitCellData(r, c, td.textContent);
+                td.removeEventListener('input', onInput);
+                td.removeEventListener('blur', onBlur);
+            };
+            td.addEventListener('input', onInput);
+            td.addEventListener('blur', onBlur);
+        }
+
+        /* -----------------------------------
+           📊 フローティンググラフ
+        ----------------------------------- */
+        function createFloatingChart(type) {
+            const minR = Math.min(startCell.r, endCell.r);
+            const maxR = Math.max(startCell.r, endCell.r);
+            const minC = Math.min(startCell.c, endCell.c);
+            const maxC = Math.max(startCell.c, endCell.c);
+
+            const labels = [];
+            const data = [];
+
+            for (let r = minR; r <= maxR; r++) {
+                const labelId = getCellId(r, minC);
+                const valId = getCellId(r, maxC);
+                labels.push(dataStore[labelId] ? dataStore[labelId].val : `Row ${r+1}`);
+                data.push(dataStore[valId] && !isNaN(parseFloat(dataStore[valId].val)) ? parseFloat(dataStore[valId].val) : 0);
+            }
+
+            const win = document.createElement('div');
+            win.className = 'draggable-chart-window';
+            const chartCanvasId = 'chart_' + Date.now();
+
+            win.innerHTML = `
+                <div class="chart-drag-header" onmousedown="makeDraggable(event, this.parentElement)">
+                    <span>📊 グラフ (${getCurrentRangeStr()})</span>
+                    <button style="border:none; background:transparent; cursor:pointer;" onclick="this.parentElement.parentElement.remove()">✕</button>
+                </div>
+                <div style="flex:1; padding:8px; position:relative;">
+                    <canvas id="${chartCanvasId}"></canvas>
+                </div>
+            `;
+            document.getElementById('gridWorkspace').appendChild(win);
+
+            const ctx = document.getElementById(chartCanvasId).getContext('2d');
+            new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '集計値',
+                        data: data,
+                        backgroundColor: ['#107c41', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'],
+                        borderColor: '#107c41',
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function makeDraggable(e, winElem) {
+            let shiftX = e.clientX - winElem.getBoundingClientRect().left;
+            let shiftY = e.clientY - winElem.getBoundingClientRect().top;
+
+            function moveAt(pageX, pageY) {
+                winElem.style.left = (pageX - shiftX) + 'px';
+                winElem.style.top = (pageY - shiftY) + 'px';
+            }
+
+            function onMouseMove(e) { moveAt(e.pageX, e.pageY); }
+            document.addEventListener('mousemove', onMouseMove);
+
+            document.onmouseup = function() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.onmouseup = null;
+            };
+        }
+
+        /* -----------------------------------
+           🔴 マクロ機能
+        ----------------------------------- */
+        function toggleMacroRecord() {
+            isRecordingMacro = !isRecordingMacro;
+            const btn = document.getElementById('macroRecBtn');
+            const status = document.getElementById('macroStatusBadge');
+
+            if (isRecordingMacro) {
+                macroLogs = [];
+                btn.textContent = '⏹️ 停止';
+                status.textContent = '🔴 録画中...';
+                status.className = 'macro-active-pulse';
+            } else {
+                btn.textContent = '🔴 録画';
+                status.textContent = `記録完了 (${macroLogs.length}件)`;
+                status.className = '';
+            }
+        }
+
+        function clearMacro() {
+            macroLogs = [];
+            const status = document.getElementById('macroStatusBadge');
+            status.textContent = 'マクロ未保持';
+            status.className = '';
+            alert('記憶されていたマクロを削除しました。');
+        }
+
+        function playMacro() {
+            if (macroLogs.length === 0) { alert('実行できるマクロがありません。'); return; }
+            const status = document.getElementById('macroStatusBadge');
+            status.textContent = '▶ 実行中...';
+            status.className = 'macro-running-pulse';
+
+            setTimeout(() => {
+                macroLogs.forEach(action => {
+                    if (action.type === 'input') commitCellData(activeCell.r, activeCell.c, action.rawVal);
+                    else if (action.type === 'style') applyBatchStyle(action.prop, action.val);
+                });
+                recalculateAll();
+                status.textContent = '実行完了';
+                status.className = '';
+            }, 300);
+        }
+
+        /* -----------------------------------
+           数式評価・スタイル処理
+        ----------------------------------- */
+        function applyBatchStyle(prop, val) {
+            const minR = Math.min(startCell.r, endCell.r);
+            const maxR = Math.max(startCell.r, endCell.r);
+            const minC = Math.min(startCell.c, endCell.c);
+            const maxC = Math.max(startCell.c, endCell.c);
+
+            if (isRecordingMacro) macroLogs.push({ type: 'style', prop, val });
+
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    const id = getCellId(r, c);
+                    if (!dataStore[id]) dataStore[id] = { raw: '', val: '', style: {} };
+                    dataStore[id].style[prop] = val;
+                    const td = document.getElementById(`cell_${r}_${c}`);
+                    if (td) td.style[prop] = val;
+                }
+            }
+        }
+
+        function applyAutoFunction(funcName) {
+            const targetRow = Math.min(Math.max(startCell.r, endCell.r) + 1, rowCount - 1);
+            const formula = `=${funcName}(${getCurrentRangeStr()})`;
+            commitCellData(targetRow, Math.min(startCell.c, endCell.c), formula);
+        }
+
+        function commitCellData(r, c, rawVal) {
+            const id = getCellId(r, c);
+            if (!dataStore[id]) dataStore[id] = { raw: '', val: '', style: {} };
+            dataStore[id].raw = rawVal;
+
+            if (isRecordingMacro) macroLogs.push({ type: 'input', rawVal });
+            recalculateAll();
+        }
+
+        function commitFormulaInput(val) { commitCellData(activeCell.r, activeCell.c, val); }
+
+        function evaluateFormula(expr) {
+            if (!expr || !expr.startsWith('=')) return expr;
+            let cleanExpr = expr.substring(1).toUpperCase();
+
+            try {
+                cleanExpr = cleanExpr.replace(/(SUM|AVERAGE|COUNT|MAX|MIN)\(([A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?)\)/g, (match, func, range) => {
+                    let vals = [];
+                    if (range.includes(':')) {
+                        const [start, end] = range.split(':');
+                        vals = getRangeValues(start, end);
+                    } else {
+                        const cell = dataStore[range];
+                        if (cell && !isNaN(parseFloat(cell.val))) vals.push(parseFloat(cell.val));
+                    }
+
+                    if (func === 'SUM') return vals.reduce((a, b) => a + b, 0);
+                    if (func === 'AVERAGE') return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+                    if (func === 'COUNT') return vals.length;
+                    if (func === 'MAX') return vals.length ? Math.max(...vals) : 0;
+                    if (func === 'MIN') return vals.length ? Math.min(...vals) : 0;
+                });
+
+                cleanExpr = cleanExpr.replace(/\b[A-Z]+[0-9]+\b/g, (match) => {
+                    const cell = dataStore[match];
+                    return (cell && !isNaN(parseFloat(cell.val))) ? parseFloat(cell.val) : 0;
+                });
+
+                return Function(`"use strict"; return (${cleanExpr})`)();
+            } catch (e) {
+                return '#VALUE!';
+            }
+        }
+
+        function getRangeValues(startId, endId) {
+            const startCol = startId.charCodeAt(0) - 65;
+            const startRow = parseInt(startId.substring(1)) - 1;
+            const endCol = endId.charCodeAt(0) - 65;
+            const endRow = parseInt(endId.substring(1)) - 1;
+
+            const vals = [];
+            for (let r = Math.min(startRow, endRow); r <= Math.max(startRow, endRow); r++) {
+                for (let c = Math.min(startCol, endCol); c <= Math.max(startCol, endCol); c++) {
+                    const id = getCellId(r, c);
+                    if (dataStore[id] && !isNaN(parseFloat(dataStore[id].val))) {
+                        vals.push(parseFloat(dataStore[id].val));
+                    }
+                }
+            }
+            return vals;
+        }
+
+        function recalculateAll() {
+            for (let r = 0; r < rowCount; r++) {
+                for (let c = 0; c < colCount; c++) {
+                    const id = getCellId(r, c);
+                    if (dataStore[id]) {
+                        dataStore[id].val = evaluateFormula(dataStore[id].raw);
+                        const td = document.getElementById(`cell_${r}_${c}`);
+                        if (td) {
+                            td.textContent = dataStore[id].val;
+                            if (dataStore[id].style) Object.assign(td.style, dataStore[id].style);
+                        }
+                    }
+                }
+            }
+            updateSelection();
+        }
+
+        /* -----------------------------------
+           📁 ファイル保存・読み込み機能（修正済）
+        ----------------------------------- */
+        function handleFileSelect(e) { const file = e.target.files[0]; if (file) readFile(file); }
+        function handleFileDrop(e) { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) readFile(file); }
+
+        function readFile(file) {
+            const reader = new FileReader();
+            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                    dataStore = {};
+                    json.forEach((row, r) => {
+                        row.forEach((val, c) => {
+                            if (r < rowCount && c < colCount) {
+                                const id = getCellId(r, c);
+                                dataStore[id] = { raw: val.toString(), val: val.toString(), style: {} };
+                            }
+                        });
+                    });
+                    document.getElementById('docName').value = file.name;
+                    saveRecentFile(file.name, JSON.stringify(dataStore));
+                    document.getElementById('appHome').style.display = 'none';
+                    recalculateAll();
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    if (file.name.endsWith('.scell')) {
+                        const parsed = JSON.parse(content);
+                        dataStore = parsed.data || {};
+                    } else {
+                        parseCSVToDataStore(content);
+                    }
+                    document.getElementById('docName').value = file.name;
+                    saveRecentFile(file.name, JSON.stringify(dataStore));
+                    document.getElementById('appHome').style.display = 'none';
+                    recalculateAll();
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function parseCSVToDataStore(text) {
+            dataStore = {};
+            text.split('\n').forEach((line, r) => {
+                line.split(',').forEach((val, c) => {
+                    if (r < rowCount && c < colCount) {
+                        const id = getCellId(r, c);
+                        const cleanVal = val.replace(/^"|"$/g, '').trim();
+                        dataStore[id] = { raw: cleanVal, val: cleanVal, style: {} };
+                    }
+                });
+            });
+        }
+
+        /* 💾 修正版: .scellファイルとしてJSON出力 */
+        function saveScellFile() {
+            const baseName = getBaseFileName();
+            const fileName = `${baseName}.scell`;
+            const content = JSON.stringify({ app: 'Nexis Supercell', data: dataStore }, null, 2);
+            
+            saveRecentFile(fileName, content);
+
+            const blob = new Blob([content], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        /* 📗 修正版: .xlsxファイル（Excel形式）出力 */
+        function exportXLSX() {
+            const baseName = getBaseFileName();
+            const fileName = `${baseName}.xlsx`;
+
+            const sheetData = [];
+            for (let r = 0; r < rowCount; r++) {
+                const row = [];
+                for (let c = 0; c < colCount; c++) {
+                    const id = getCellId(r, c);
+                    row.push(dataStore[id] ? dataStore[id].val : '');
+                }
+                sheetData.push(row);
+            }
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, fileName);
+        }
+
+        /* 📄 修正版: .csvファイル出力 */
+        function exportCSV() {
+            const baseName = getBaseFileName();
+            const fileName = `${baseName}.csv`;
+
+            let csv = '';
+            for (let r = 0; r < rowCount; r++) {
+                let row = [];
+                for (let c = 0; c < colCount; c++) {
+                    const id = getCellId(r, c);
+                    row.push(`"${dataStore[id] ? dataStore[id].val : ''}"`);
+                }
+                csv += row.join(',') + '\n';
+            }
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function saveRecentFile(name, jsonContent) {
+            let recents = JSON.parse(localStorage.getItem('scell_recents') || '[]');
+            recents = recents.filter(item => item.name !== name);
+            recents.unshift({ name, data: jsonContent, time: new Date().toLocaleString() });
+            localStorage.setItem('scell_recents', JSON.stringify(recents.slice(0, 5)));
+            renderRecentList();
+        }
+
+        function renderRecentList() {
+            const recents = JSON.parse(localStorage.getItem('scell_recents') || '[]');
+            const container = document.getElementById('recentList');
+            if (recents.length === 0) {
+                container.innerHTML = '<div style="color:#888; font-size:0.85rem;">履歴はありません</div>';
+                return;
+            }
+            container.innerHTML = recents.map((item, idx) => `
+                <div class="recent-item" onclick="loadRecent(${idx})">
+                    <div>
+                        <strong>${item.name}</strong>
+                        <div style="font-size:0.75rem; color:#888;">${item.time}</div>
+                    </div>
+                    <span>➔</span>
+                </div>
+            `).join('');
+        }
+
+        function loadRecent(idx) {
+            const recents = JSON.parse(localStorage.getItem('scell_recents') || '[]');
+            if (recents[idx]) {
+                dataStore = JSON.parse(recents[idx].data);
+                document.getElementById('docName').value = recents[idx].name;
+                document.getElementById('appHome').style.display = 'none';
+                recalculateAll();
+            }
+        }
+
+        function copySelection() {
+            const minR = Math.min(startCell.r, endCell.r);
+            const maxR = Math.max(startCell.r, endCell.r);
+            const minC = Math.min(startCell.c, endCell.c);
+            const maxC = Math.max(startCell.c, endCell.c);
+            clipboardData = [];
+            for (let r = minR; r <= maxR; r++) {
+                const row = [];
+                for (let c = minC; c <= maxC; c++) {
+                    const id = getCellId(r, c);
+                    row.push(dataStore[id] ? JSON.parse(JSON.stringify(dataStore[id])) : null);
+                }
+                clipboardData.push(row);
+            }
+        }
+
+        function pasteSelection() {
+            if (!clipboardData) return;
+            const baseR = activeCell.r, baseC = activeCell.c;
+            for (let r = 0; r < clipboardData.length; r++) {
+                for (let c = 0; c < clipboardData[r].length; c++) {
+                    const targetR = baseR + r, targetC = baseC + c;
+                    if (targetR >= rowCount || targetC >= colCount) continue;
+                    const id = getCellId(targetR, targetC);
+                    const src = clipboardData[r][c];
+                    if (!dataStore[id]) dataStore[id] = { raw: '', val: '', style: {} };
+                    if (src) {
+                        dataStore[id].raw = src.raw;
+                        dataStore[id].style = { ...src.style };
+                    }
+                }
+            }
+            recalculateAll();
+        }
+
+        function printTable() { window.print(); }
+        function showHome() { document.getElementById('appHome').style.display = 'flex'; }
+        
+        function startNewSheet(type) {
+            dataStore = {};
+            document.getElementById('appHome').style.display = 'none';
+            if (type === 'budget') {
+                dataStore['A1'] = { raw: '月', val: '月', style: { fontWeight: 'bold' } };
+                dataStore['B1'] = { raw: '売上', val: '売上', style: { fontWeight: 'bold' } };
+                dataStore['A2'] = { raw: '1月', val: '1月', style: {} }; dataStore['B2'] = { raw: '120000', val: '120000', style: {} };
+                dataStore['A3'] = { raw: '2月', val: '2月', style: {} }; dataStore['B3'] = { raw: '150000', val: '150000', style: {} };
+                dataStore['A4'] = { raw: '3月', val: '3月', style: {} }; dataStore['B4'] = { raw: '180000', val: '180000', style: {} };
+            }
+            recalculateAll();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            buildGrid();
+            renderRecentList();
+            updateSelection();
+        });
+    </script>
+</body>
+</html>
