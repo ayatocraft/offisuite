@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexis Vault</title>
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+    <style>
+        :root {
+            --brand-primary: #0ea5e9;   /* 水色(メイン) */
+            --brand-dark: #0284c7;
+            --brand-soft: #e0f2fe;
+            --brand-faint: #f0f9ff;
+            --bg-body: #eef6fb;
+            --border-color: #cfe3ef;
+            --text-main: #1f2d3a;
+            --text-sub: #6b7f8f;
+            --danger: #dc2626;
+            --danger-soft: #fef2f2;
+            --warn: #b45309;
+            --warn-soft: #fffbeb;
+            --ok: #059669;
+            --ok-soft: #ecfdf5;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Meiryo, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background: var(--bg-body); color: var(--text-main); overflow: hidden; }
+        button { font-family: inherit; }
+
+        /* ---------- ホーム画面(参考UIと同じ構成) ---------- */
+        .app-home-overlay { position: fixed; inset: 0; background: #f7fbfe; z-index: 2000; display: flex; flex-direction: column; }
+        .home-header { background: var(--brand-primary); color: white; padding: 24px 48px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(14,165,233,0.25); }
+        .home-header h1 { font-size: 2.2rem; font-weight: 700; }
+        .home-header p { opacity: 0.92; margin-top: 2px; }
+        .home-main { padding: 32px 48px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 32px; }
+
+        .section-title { font-size: 1.2rem; font-weight: 700; color: #3b5568; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .section-title .sub { font-size: 0.8rem; font-weight: 500; color: var(--text-sub); }
+
+        .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .template-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; height: 180px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.04); }
+        .template-card:hover { border-color: var(--brand-primary); transform: translateY(-3px); box-shadow: 0 6px 14px rgba(14,165,233,0.18); }
+        .template-preview { height: 100px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.05rem; border: 1px dashed var(--border-color); }
+        .template-card small { display: block; font-weight: 400; color: var(--text-sub); font-size: 0.78rem; margin-top: 2px; }
+
+        /* 保存済み一覧(recent-gridを踏襲) */
+        .recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+        .recent-card { background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; transition: 0.2s; }
+        .recent-card:hover { border-color: var(--brand-primary); background: var(--brand-faint); }
+        .recent-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .recent-info { min-width: 0; }
+        .recent-info h4 { font-size: 0.95rem; font-weight: 600; word-break: break-all; }
+        .recent-info span { font-size: 0.78rem; color: var(--text-sub); display: block; margin-top: 2px; }
+        .badge { flex-shrink: 0; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+        .badge.stored { background: var(--brand-soft); color: var(--brand-dark); }
+        .badge.received { background: var(--ok-soft); color: var(--ok); }
+        .badge.locked { background: var(--danger-soft); color: var(--danger); }
+        .recent-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .code-chip { font-family: Consolas, 'Courier New', monospace; font-size: 1.05rem; letter-spacing: 0.18em; font-weight: 700; color: var(--brand-dark); background: var(--brand-faint); border: 1px solid var(--border-color); padding: 3px 10px; border-radius: 6px; }
+        .card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .btn-mini { white-space: nowrap; border: 1px solid var(--border-color); background: white; color: var(--text-main); padding: 4px 10px; border-radius: 5px; font-size: 0.78rem; cursor: pointer; transition: 0.15s; }
+        .btn-mini:hover { border-color: var(--brand-primary); color: var(--brand-dark); }
+        .btn-mini.danger:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+        .empty-note { color: var(--text-sub); font-size: 0.9rem; padding: 28px; text-align: center; background: white; border: 1px dashed var(--border-color); border-radius: 8px; grid-column: 1 / -1; }
+
+        /* ---------- ボタン ---------- */
+        .btn-header { background: rgba(255,255,255,0.22); border: none; color: white; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .btn-header:hover { background: rgba(255,255,255,0.38); }
+        .btn-primary { background: var(--brand-primary); color: white; border: none; border-radius: 8px; padding: 11px 22px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: 0.2s; }
+        .btn-primary:hover:not(:disabled) { background: var(--brand-dark); }
+        .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-secondary { background: white; color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 11px 22px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+        .btn-secondary:hover { border-color: var(--brand-primary); }
+
+        /* ---------- 機能画面(送る / 受け取る) ---------- */
+        .title-bar { height: 42px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; user-select: none; flex-shrink: 0; }
+        .title-bar .app-info { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+
+        .workspace { flex: 1; overflow-y: auto; padding: 40px 24px; display: flex; justify-content: center; }
+        .panel { width: 100%; max-width: 620px; background: white; border: 1px solid var(--border-color); border-radius: 12px; box-shadow: 0 8px 24px rgba(14,165,233,0.10); padding: 32px; align-self: flex-start; }
+        .panel h2 { font-size: 1.4rem; margin-bottom: 4px; }
+        .panel .lead { color: var(--text-sub); font-size: 0.9rem; margin-bottom: 24px; }
+
+        .field { margin-bottom: 18px; }
+        .field label { display: block; font-size: 0.85rem; font-weight: 700; color: #3b5568; margin-bottom: 6px; }
+        .field .hint { font-size: 0.76rem; color: var(--text-sub); margin-top: 4px; }
+        .field input[type=text], .field input[type=password] { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.95rem; outline: none; background: white; }
+        .field input:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--brand-soft); }
+
+        .dropzone { border: 2px dashed var(--border-color); border-radius: 10px; padding: 26px 16px; text-align: center; cursor: pointer; background: var(--brand-faint); transition: 0.2s; color: var(--text-sub); font-size: 0.9rem; }
+        .dropzone:hover, .dropzone.drag { border-color: var(--brand-primary); background: var(--brand-soft); color: var(--brand-dark); }
+        .dropzone strong { display: block; color: var(--text-main); font-size: 1rem; margin-bottom: 4px; }
+
+        .file-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+        .file-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--brand-faint); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.86rem; }
+        .file-row .fname { word-break: break-all; }
+        .file-row .fsize { color: var(--text-sub); flex-shrink: 0; margin-left: auto; }
+        .file-row button { border: none; background: transparent; color: var(--text-sub); cursor: pointer; font-size: 1rem; }
+        .file-row button:hover { color: var(--danger); }
+
+        .code-input { text-align: center; font-family: Consolas, 'Courier New', monospace; font-size: 1.8rem !important; letter-spacing: 0.4em; font-weight: 700; padding: 14px 12px !important; }
+
+        .progress { height: 8px; background: var(--brand-soft); border-radius: 999px; overflow: hidden; margin-top: 14px; display: none; }
+        .progress > div { height: 100%; width: 0; background: var(--brand-primary); transition: width 0.2s; }
+
+        .notice { border-radius: 8px; padding: 12px 14px; font-size: 0.86rem; line-height: 1.55; margin-bottom: 18px; }
+        .notice.danger { background: var(--danger-soft); color: #991b1b; border: 1px solid #fecaca; }
+        .notice.warn { background: var(--warn-soft); color: var(--warn); border: 1px solid #fde68a; }
+        .notice.info { background: var(--brand-faint); color: var(--brand-dark); border: 1px solid var(--border-color); }
+        .notice strong { display: block; margin-bottom: 2px; }
+
+        /* 送信完了 */
+        .result-box { text-align: center; }
+        .result-code { font-family: Consolas, 'Courier New', monospace; font-size: 3rem; font-weight: 700; letter-spacing: 0.3em; color: var(--brand-dark); background: var(--brand-faint); border: 2px solid var(--brand-primary); border-radius: 12px; padding: 18px 12px 18px 24px; margin: 18px 0; }
+
+        /* 受信確認 */
+        .confirm-card { border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; margin-bottom: 18px; }
+        .confirm-row { display: flex; padding: 10px 14px; font-size: 0.9rem; border-bottom: 1px solid var(--border-color); }
+        .confirm-row:last-child { border-bottom: none; }
+        .confirm-row dt { width: 96px; flex-shrink: 0; color: var(--text-sub); }
+        .confirm-row dd { font-weight: 700; word-break: break-all; }
+        .check-line { display: flex; gap: 10px; align-items: flex-start; font-size: 0.88rem; margin-bottom: 12px; cursor: pointer; line-height: 1.5; }
+        .check-line input { margin-top: 3px; width: 17px; height: 17px; accent-color: var(--brand-primary); flex-shrink: 0; }
+        .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+        .btn-row .btn-primary { flex: 1; }
+
+
+        /* ---------- 使用状況の視覚化 ---------- */
+        .usage-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+        .usage-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; padding: 18px 20px; }
+        .usage-card h4 { font-size: 0.85rem; color: var(--text-sub); font-weight: 600; margin-bottom: 12px; }
+        .slots { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px; margin-bottom: 12px; }
+        .slot { aspect-ratio: 1; border-radius: 3px; background: var(--brand-soft); border: 1px solid var(--border-color); }
+        .slot.used { background: var(--brand-primary); border-color: var(--brand-dark); }
+        .slot.bonus { background: transparent; border: 1px dashed #9fd3ee; }
+        .slot.bonus.used { background: var(--brand-dark); border: 1px solid var(--brand-dark); }
+        .slot.locked { background: #f1f5f9; border: 1px solid #e2e8f0; position: relative; }
+        .slot.locked::after { content: ''; position: absolute; inset: 30% 20%; border-top: 1px solid #cbd5e1; }
+        .usage-num { font-size: 1.9rem; font-weight: 700; color: var(--brand-dark); line-height: 1; }
+        .usage-num small { font-size: 0.95rem; font-weight: 500; color: var(--text-sub); }
+        .usage-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.74rem; color: var(--text-sub); margin-top: 8px; }
+        .usage-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+        .bar { height: 10px; background: var(--brand-soft); border-radius: 999px; overflow: hidden; margin: 8px 0 6px; }
+        .bar > div { height: 100%; background: var(--brand-primary); border-radius: 999px; transition: width 0.4s; }
+        .bar.warn > div { background: #f59e0b; }
+        .bar.full > div { background: var(--danger); }
+        .bar-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-sub); }
+        .usage-note { font-size: 0.78rem; color: var(--text-sub); margin-top: 12px; line-height: 1.5; }
+        .expiry { height: 5px; background: var(--brand-soft); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+        .expiry > div { height: 100%; background: var(--brand-primary); }
+        .expiry.soon > div { background: #f59e0b; }
+        .expiry.urgent > div { background: var(--danger); }
+        .expiry-label { font-size: 0.74rem; color: var(--text-sub); display: flex; justify-content: space-between; margin-top: 3px; }
+        .expiry-label b.soon { color: var(--warn); } .expiry-label b.urgent { color: var(--danger); }
+        @media (max-width: 760px) { .usage-grid { grid-template-columns: 1fr; } }
+
+        /* ---------- ステータスバー ---------- */
+        .status-bar { height: 26px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 0.78rem; font-weight: 500; flex-shrink: 0; }
+        #screenSend, #screenReceive { display: none; flex-direction: column; flex: 1; min-height: 0; }
+
+        .toast { position: fixed; bottom: 44px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1f2d3a; color: white; padding: 10px 20px; border-radius: 8px; font-size: 0.88rem; opacity: 0; pointer-events: none; transition: 0.25s; z-index: 4000; max-width: 90vw; }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        @media (max-width: 640px) {
+            .home-header { padding: 18px 20px; }
+            .home-header h1 { font-size: 1.6rem; }
+            .home-main { padding: 20px; }
+            .panel { padding: 22px 18px; }
+            .result-code { font-size: 2.2rem; }
+            .recent-grid { grid-template-columns: 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+</head>
+<body>
+
+    <!-- ===== ホーム ===== -->
+    <div class="app-home-overlay" id="appHome">
+        <div class="home-header">
+            <div>
+                <h1>Nexis Vault</h1>
+                <p>ファイルを一時保存し、8桁コードとパスワードで別のデバイスへ受け渡し</p>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button class="btn-header" onclick="location.href='Nexis_OffiSuite.html'" style="font-size:1rem; padding:8px 18px;">← Suiteポータルへ</button>
+            </div>
+        </div>
+        <div class="home-main">
+            <div>
+                <div class="section-title">操作を選ぶ</div>
+                <div class="template-grid">
+                    <div class="template-card" onclick="showSend()">
+                        <div class="template-preview" style="background:var(--brand-primary); color:white;">⬆ ファイルを預ける</div>
+                        <div style="font-weight:700;">送る<small>アップロードして8桁コードを発行</small></div>
+                    </div>
+                    <div class="template-card" onclick="showReceive()">
+                        <div class="template-preview" style="background:var(--brand-soft); color:var(--brand-dark);">⬇ コードで受け取る</div>
+                        <div style="font-weight:700;">受け取る<small>8桁コード+パスワードを入力</small></div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">
+                    <span>使用状況</span>
+                    <span class="sub" id="usageSub"></span>
+                </div>
+                <div class="usage-grid" id="usagePanel">
+                    <div class="usage-card"><h4>読み込み中…</h4></div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">
+                    <span>このデバイスから預けたファイル</span>
+                    <span class="sub"><button class="btn-mini" onclick="refreshList()">↻ 更新</button></span>
+                </div>
+                <div class="recent-grid" id="vaultList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 送る ===== -->
+    <div id="screenSend">
+        <div class="title-bar">
+            <div class="app-info">
+                <button class="btn-header" onclick="showHome()">← ホーム</button>
+                <span>🔐 Nexis Vault / 送る</span>
+            </div>
+        </div>
+        <div class="workspace">
+            <div class="panel" id="sendPanel"></div>
+        </div>
+    </div>
+
+    <!-- ===== 受け取る ===== -->
+    <div id="screenReceive">
+        <div class="title-bar">
+            <div class="app-info">
+                <button class="btn-header" onclick="showHome()">← ホーム</button>
+                <span>🔐 Nexis Vault / 受け取る</span>
+            </div>
+        </div>
+        <div class="workspace">
+            <div class="panel" id="receivePanel"></div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div id="statConn">接続: 未設定</div>
+        <div>Nexis Vault v1.0</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    /* =========================================================
+       公開用設定(ここだけ書き換えてください)
+       Supabase > Project Settings > API の値を貼り付けます。
+       anon public キーは公開前提のキーです。service_role キーは絶対に入れないでください。
+       ========================================================= */
+    window.NEXIS_VAULT_CONFIG = {
+    url:     'https://aoudqjutrcvzabqfmdhc.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvdWRxanV0cmN2emFicWZtZGhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNDE4NzgsImV4cCI6MjEwNTgxNzg3OH0.n0jtEE4EDlv9XBDw_1Stntq5YJhgMgebcxJ1fWqnWY0'
+    };
+
+    /* =========================================================
+       定数・状態
+       ========================================================= */
+    const BUCKET = 'vault';
+    const MAX_FILE = 50 * 1024 * 1024;
+    const PBKDF2_ITER = 210000;
+
+    const SEND_FORM_HTML = `
+                <h2>ファイルを預ける</h2>
+                <p class="lead">預けたファイルは、受け取られると自動で削除されます(未受信でも30日間は保存され、期限前なら延長できます)。</p>
+
+                <div class="field">
+                    <label for="sendName">送り主の名前</label>
+                    <input type="text" id="sendName" maxlength="40" placeholder="例:山田太郎" autocomplete="off">
+                    <div class="hint">受け取る人が「この人から届くはず」と確認するときに表示されます。</div>
+                </div>
+
+                <div class="field">
+                    <label>ファイル</label>
+                    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+                        <strong>クリックして選択、またはここにドロップ</strong>
+                        複数選択できます(1ファイル50MBまで)
+                    </div>
+                    <input type="file" id="fileInput" multiple style="display:none;">
+                    <div class="file-list" id="fileList"></div>
+                </div>
+
+                <div class="field">
+                    <label for="sendPw">パスワード</label>
+                    <input type="password" id="sendPw" placeholder="4文字以上" autocomplete="new-password">
+                    <div class="hint">8桁コードに加えて、このパスワードを知っている人だけが受け取れます。パスワードは別の手段で相手に伝えてください。</div>
+                </div>
+
+                <button class="btn-primary" id="btnUpload" onclick="doUpload()" style="width:100%;">預けて8桁コードを発行</button>
+                <div class="progress" id="progress"><div id="progressBar"></div></div>
+            `;
+
+    let sb = null;                 // Supabase クライアント
+    let selectedFiles = [];        // 送信待ちファイル
+    let claimedPeek = null;        // 受信確認中の情報
+
+    /* =========================================================
+       ユーティリティ
+       ========================================================= */
+    function esc(s) {
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function fmtSize(n) {
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1048576).toFixed(1) + ' MB';
+    }
+    function fmtDate(iso) {
+        const d = new Date(iso);
+        return d.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    function toast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => t.classList.remove('show'), 2800);
+    }
+    function b64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+    function unb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+
+    /* 8桁コード(暗号論的乱数・0始まりも許可) */
+    function generateCode() {
+        const a = new Uint32Array(1);
+        let n;
+        do { crypto.getRandomValues(a); n = a[0]; } while (n >= 4294967296 - (4294967296 % 100000000));
+        return String(n % 100000000).padStart(8, '0');
+    }
+
+    /* パスワード → PBKDF2-SHA256 ハッシュ */
+    async function hashPassword(pw, saltBytes) {
+        const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+        const bits = await crypto.subtle.deriveBits(
+            { name: 'PBKDF2', salt: saltBytes, iterations: PBKDF2_ITER, hash: 'SHA-256' }, key, 256);
+        return b64(bits);
+    }
+
+    /* この端末の識別子(一覧の絞り込み用) */
+    function ownerKey() {
+        let k = localStorage.getItem('vault_owner_key');
+        if (!k) { k = crypto.randomUUID(); localStorage.setItem('vault_owner_key', k); }
+        return k;
+    }
+
+    /* =========================================================
+       Supabase 接続
+       ========================================================= */
+    function initSupabase() {
+        const stat = document.getElementById('statConn');
+        const c = window.NEXIS_VAULT_CONFIG || {};
+        const ready = c.url && c.anonKey && !c.url.includes('YOUR-PROJECT') && !c.anonKey.includes('YOUR-ANON');
+        if (!ready) { sb = null; stat.textContent = '接続: 設定が必要です'; return false; }
+        try {
+            sb = window.supabase.createClient(c.url, c.anonKey, { auth: { persistSession: false } });
+            stat.textContent = '接続済み';
+            return true;
+        } catch (e) {
+            sb = null; stat.textContent = '接続: エラー'; return false;
+        }
+    }
+    function requireSb() {
+        if (sb) return true;
+        toast('接続設定が未完了です。管理者に連絡してください');
+        return false;
+    }
+
+    /* =========================================================
+       画面切り替え
+       ========================================================= */
+    function hideAll() {
+        document.getElementById('appHome').style.display = 'none';
+        document.getElementById('screenSend').style.display = 'none';
+        document.getElementById('screenReceive').style.display = 'none';
+    }
+    function showHome() {
+        hideAll();
+        document.getElementById('appHome').style.display = 'flex';
+        refreshList();
+    }
+    function showSend() {
+        hideAll();
+        resetSendPanel();
+        document.getElementById('screenSend').style.display = 'flex';
+    }
+    function showReceive() {
+        hideAll();
+        renderReceiveStep1();
+        document.getElementById('screenReceive').style.display = 'flex';
+    }
+
+    /* =========================================================
+       送る
+       ========================================================= */
+    function resetSendPanel() {
+        selectedFiles = [];
+        document.getElementById('sendPanel').innerHTML = SEND_FORM_HTML;
+        document.getElementById('sendName').value = localStorage.getItem('vault_last_name') || '';
+        bindDropzone();
+        renderFileList();
+    }
+
+    function bindDropzone() {
+        const dz = document.getElementById('dropzone');
+        const fi = document.getElementById('fileInput');
+        fi.addEventListener('change', e => { addFiles(e.target.files); fi.value = ''; });
+        ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+        ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+        dz.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+    }
+
+    function addFiles(list) {
+        for (const f of list) {
+            if (f.size > MAX_FILE) { toast(`${f.name} は50MBを超えているため追加できません`); continue; }
+            if (f.size === 0) { toast(`${f.name} は空のファイルです`); continue; }
+            selectedFiles.push(f);
+        }
+        renderFileList();
+    }
+    function renderFileList() {
+        const box = document.getElementById('fileList');
+        box.innerHTML = selectedFiles.map((f, i) =>
+            `<div class="file-row"><span class="fname">📄 ${esc(f.name)}</span><span class="fsize">${fmtSize(f.size)}</span><button onclick="removeFile(${i})" title="外す">✕</button></div>`
+        ).join('');
+    }
+    function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); }
+
+    async function doUpload() {
+        if (!requireSb()) return;
+        const name = document.getElementById('sendName').value.trim();
+        const pw = document.getElementById('sendPw').value;
+
+        if (!name) { toast('送り主の名前を入力してください'); return; }
+        if (selectedFiles.length === 0) { toast('ファイルを選択してください'); return; }
+        if (pw.length < 4) { toast('パスワードは4文字以上で入力してください'); return; }
+
+        localStorage.setItem('vault_last_name', name);
+
+        const btn = document.getElementById('btnUpload');
+        const prog = document.getElementById('progress');
+        const bar = document.getElementById('progressBar');
+        btn.disabled = true; prog.style.display = 'block'; bar.style.width = '5%';
+
+        try {
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const hash = await hashPassword(pw, salt);
+            const results = [];
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const f = selectedFiles[i];
+                const path = `${crypto.randomUUID()}/${crypto.randomUUID()}`;   // 推測不能なパス
+
+                const up = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type || 'application/octet-stream', upsert: false });
+                if (up.error) throw new Error(`アップロード失敗(${f.name}): ${up.error.message}`);
+
+                // 8桁コード衝突時は再生成して再試行
+                let code, reg, tries = 0;
+                do {
+                    code = generateCode();
+                    reg = await sb.rpc('vault_register', {
+                        p_code: code, p_sender: name, p_file_name: f.name, p_file_size: f.size,
+                        p_mime: f.type || null, p_storage_path: path,
+                        p_salt: b64(salt), p_hash: hash, p_owner: ownerKey()
+                    });
+                    tries++;
+                } while (reg.error && reg.error.code === '23505' && tries < 8);
+
+                if (reg.error) {
+                    // 登録に失敗したら、アップロード済みの孤児ファイルは残さない(削除できない場合は期限切れの掃除に任せる)
+                    await sb.storage.from(BUCKET).remove([path]);
+                    const m = reg.error.message || '';
+                    if (m.includes('limit exceeded')) throw new Error('現在の預け入れ上限に達しています。不要なファイルを削除するか、受け取ってください');
+                    if (m.includes('service full')) throw new Error('現在サービスの保存容量がいっぱいです。しばらくしてからお試しください');
+                    throw new Error(`登録失敗(${f.name}): ${m}`);
+                }
+                results.push({ name: f.name, code });
+                bar.style.width = (5 + 95 * (i + 1) / selectedFiles.length) + '%';
+            }
+            showSendResult(results);
+        } catch (e) {
+            console.error(e);
+            toast(e.message || 'アップロードに失敗しました');
+            btn.disabled = false; prog.style.display = 'none';
+        }
+    }
+
+    function showSendResult(results) {
+        const p = document.getElementById('sendPanel');
+        p.innerHTML = `
+            <div class="result-box">
+                <h2>預けました</h2>
+                <p class="lead">受け取る側でこの8桁コードとパスワードを入力してください。</p>
+                ${results.map(r => `
+                    <div style="text-align:left; font-size:0.85rem; color:var(--text-sub); margin-top:14px;">📄 ${esc(r.name)}</div>
+                    <div class="result-code">${esc(r.code)}</div>
+                    <button class="btn-secondary" onclick="copyText('${esc(r.code)}')">コードをコピー</button>
+                `).join('')}
+                <div class="notice info" style="text-align:left; margin-top:20px;">
+                    <strong>パスワードは別の方法で伝えてください</strong>
+                    コードとパスワードを同じ経路で送ると、二重の保護になりません。
+                </div>
+                <div class="btn-row">
+                    <button class="btn-primary" onclick="showHome()">ホームへ戻る</button>
+                </div>
+            </div>`;
+    }
+
+    function copyText(t) {
+        navigator.clipboard.writeText(t).then(() => toast('コピーしました'), () => toast('コピーできませんでした'));
+    }
+
+    /* =========================================================
+       受け取る
+       ========================================================= */
+    function renderReceiveStep1(errMsg) {
+        claimedPeek = null;
+        document.getElementById('receivePanel').innerHTML = `
+            <h2>ファイルを受け取る</h2>
+            <p class="lead">送り主から聞いた8桁コードを入力してください。</p>
+            ${errMsg ? `<div class="notice danger"><strong>受け取れません</strong>${esc(errMsg)}</div>` : ''}
+            <div class="field">
+                <label for="recvCode">8桁の認証コード</label>
+                <input type="text" id="recvCode" class="code-input" inputmode="numeric" maxlength="8" placeholder="00000000" autocomplete="off">
+            </div>
+            <button class="btn-primary" style="width:100%;" onclick="doPeek()">次へ:内容を確認する</button>`;
+        const el = document.getElementById('recvCode');
+        el.addEventListener('input', () => { el.value = el.value.replace(/\D/g, '').slice(0, 8); });
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') doPeek(); });
+        el.focus();
+    }
+
+    async function doPeek() {
+        if (!requireSb()) return;
+        const code = document.getElementById('recvCode').value;
+        if (!/^\d{8}$/.test(code)) { toast('8桁の数字を入力してください'); return; }
+
+        const { data, error } = await sb.rpc('vault_peek', { p_code: code });
+        if (error) { console.error(error); toast('通信に失敗しました'); return; }
+        if (!data || data.length === 0) {
+            renderReceiveStep1('コードが正しくないか、すでに受信済み・期限切れです。');
+            return;
+        }
+        claimedPeek = { code, ...data[0] };
+        renderReceiveStep2();
+    }
+
+    function renderReceiveStep2(errMsg) {
+        const d = claimedPeek;
+        document.getElementById('receivePanel').innerHTML = `
+            <h2>受け取る前に確認してください</h2>
+            <p class="lead">内容に心当たりがない場合は、受け取らずに送り主へ確認してください。</p>
+
+            <div class="notice danger">
+                <strong>危険なファイルの可能性があります</strong>
+                Nexis Vault はファイルの中身を検査しません。実行ファイル(.exe .bat .js など)やマクロ付き文書は、信頼できる相手からのものだけ開いてください。
+            </div>
+
+            ${errMsg ? `<div class="notice warn"><strong>受け取れませんでした</strong>${esc(errMsg)}</div>` : ''}
+
+            <dl class="confirm-card">
+                <div class="confirm-row"><dt>送り主の名前</dt><dd>${esc(d.sender_name)}</dd></div>
+                <div class="confirm-row"><dt>ファイル名</dt><dd>${esc(d.file_name)}</dd></div>
+                <div class="confirm-row"><dt>サイズ</dt><dd>${fmtSize(d.file_size)}</dd></div>
+            </dl>
+
+            <label class="check-line">
+                <input type="checkbox" id="chkName" onchange="updateClaimBtn()">
+                <span>送り主の名前「<strong>${esc(d.sender_name)}</strong>」が、受け取る予定の相手と<strong>一致している</strong>ことを確認しました。</span>
+            </label>
+            <label class="check-line">
+                <input type="checkbox" id="chkRisk" onchange="updateClaimBtn()">
+                <span>ファイルが危険な可能性があることを理解したうえで、受け取ります。</span>
+            </label>
+
+            <div class="field" style="margin-top:18px;">
+                <label for="recvPw">パスワード</label>
+                <input type="password" id="recvPw" autocomplete="off">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-secondary" onclick="renderReceiveStep1()">戻る</button>
+                <button class="btn-primary" id="btnClaim" onclick="doClaim()" disabled>受け取る</button>
+            </div>`;
+        document.getElementById('recvPw').addEventListener('input', updateClaimBtn);
+        document.getElementById('recvPw').addEventListener('keydown', e => { if (e.key === 'Enter' && !document.getElementById('btnClaim').disabled) doClaim(); });
+    }
+    function updateClaimBtn() {
+        const ok = document.getElementById('chkName').checked &&
+                   document.getElementById('chkRisk').checked &&
+                   document.getElementById('recvPw').value.length > 0;
+        document.getElementById('btnClaim').disabled = !ok;
+    }
+
+    async function doClaim() {
+        if (!claimedPeek) return;
+        const btn = document.getElementById('btnClaim');
+        btn.disabled = true; btn.textContent = '確認中…';
+        const pw = document.getElementById('recvPw').value;
+
+        try {
+            const hash = await hashPassword(pw, unb64(claimedPeek.pw_salt));
+            const { data, error } = await sb.rpc('vault_claim', { p_code: claimedPeek.code, p_hash: hash });
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                // パスワード不一致(または直前に受信済み・ロック)
+                renderReceiveStep2('パスワードを確認してもう一度入力してください。間違いが続くとこのコードは無効になります。');
+                return;
+            }
+
+            const item = data[0];
+            btn.textContent = '取得中…';
+
+            // 署名URLで取得 → Blobとして保存
+            const signed = await sb.storage.from(BUCKET).createSignedUrl(item.storage_path, 60);
+            if (signed.error) throw signed.error;
+            const res = await fetch(signed.data.signedUrl);
+            if (!res.ok) throw new Error('ファイルの取得に失敗しました');
+            const blob = await res.blob();
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = item.file_name;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+
+            // ファイルが手元に渡ったので、インターネット上の一時保存を削除
+            await sb.rpc('vault_queue_purge', { p_path: item.storage_path });
+            await flushTrash();
+
+            document.getElementById('receivePanel').innerHTML = `
+                <div class="result-box">
+                    <h2>受け取りました</h2>
+                    <p class="lead">「${esc(item.file_name)}」をダウンロードしました。<br>インターネット上の一時保存ファイルは削除されました。</p>
+                    <div class="btn-row"><button class="btn-primary" onclick="showHome()">ホームへ戻る</button></div>
+                </div>`;
+        } catch (e) {
+            console.error(e);
+            toast(e.message || '受け取りに失敗しました');
+            renderReceiveStep2();
+        }
+    }
+
+
+    /* =========================================================
+       使用状況の視覚化
+       ========================================================= */
+    async function refreshUsage() {
+        const box = document.getElementById('usagePanel');
+        const sub = document.getElementById('usageSub');
+        if (!sb) { box.innerHTML = ''; sub.textContent = ''; return; }
+
+        const { data, error } = await sb.rpc('vault_usage', { p_owner: ownerKey() });
+        if (error || !data || !data.length) {
+            box.innerHTML = `<div class="usage-card"><h4>使用状況を取得できませんでした</h4><div class="usage-note">SQLパッチ(v3)が適用されているか確認してください。</div></div>`;
+            return;
+        }
+        const u = data[0];
+        const cnt = Number(u.my_count), limit = Number(u.my_limit), max = Number(u.my_max);
+        const used = Number(u.total_used), cap = Number(u.total_cap);
+        const pct = cap > 0 ? Math.min(100, used / cap * 100) : 0;
+        const base = 20;
+
+        // 件数スロット(最大件数ぶん描画。基本枠=実線、拡張枠=点線、今は使えない枠=グレー)
+        let slots = '';
+        for (let i = 0; i < max; i++) {
+            const isUsed = i < cnt;
+            const isBonus = i >= base;
+            const isLocked = i >= limit && !isUsed;
+            slots += `<div class="slot ${isBonus ? 'bonus' : ''} ${isUsed ? 'used' : ''} ${isLocked ? 'locked' : ''}"></div>`;
+        }
+        const remain = Math.max(0, limit - cnt);
+        const expanded = limit > base;
+
+        const barCls = pct >= 90 ? 'full' : pct >= 60 ? 'warn' : '';
+        sub.textContent = expanded ? '空きがあるため最大' + max + '件まで預けられます' : '混雑中のため現在は' + base + '件までです';
+
+        box.innerHTML = `
+            <div class="usage-card">
+                <h4>このデバイスの預け入れ枠</h4>
+                <div class="usage-num">${cnt}<small> / ${limit} 件(あと${remain}件)</small></div>
+                <div style="height:12px"></div>
+                <div class="slots" style="grid-template-columns: repeat(${max > 20 ? 20 : max}, 1fr);">${slots}</div>
+                <div class="usage-legend">
+                    <span><i style="background:var(--brand-primary)"></i>使用中</span>
+                    <span><i style="background:var(--brand-soft); border:1px solid var(--border-color)"></i>基本枠(〜${base}件)</span>
+                    <span><i style="border:1px dashed #9fd3ee"></i>拡張枠(〜${max}件)</span>
+                </div>
+                <div class="usage-note">拡張枠は、サービス全体の保存容量に余裕があるときだけ使えます。</div>
+            </div>
+            <div class="usage-card">
+                <h4>サービス全体の保存容量</h4>
+                <div class="usage-num">${pct.toFixed(0)}<small> % 使用中</small></div>
+                <div class="bar ${barCls}"><div style="width:${pct}%"></div></div>
+                <div class="bar-label"><span>${fmtSize(used)}</span><span>${fmtSize(cap)}</span></div>
+                <div class="usage-note">${pct >= 90 ? '容量がほぼいっぱいです。新しく預けられない場合があります。'
+                    : pct >= 60 ? '容量が混み合っています。拡張枠は一時的に使えません。'
+                    : '余裕があります。'}</div>
+            </div>`;
+    }
+
+    /* =========================================================
+       保存済み一覧
+       ========================================================= */
+    async function refreshList() {
+        refreshUsage();
+        flushTrash();
+        const box = document.getElementById('vaultList');
+        if (!sb) { box.innerHTML = `<div class="empty-note">接続設定が未完了です。ファイル冒頭の NEXIS_VAULT_CONFIG を設定してください。</div>`; return; }
+
+        const { data, error } = await sb.rpc('vault_list', { p_owner: ownerKey() });
+        if (error) { console.error(error); box.innerHTML = `<div class="empty-note">一覧を取得できませんでした。SQLのセットアップを確認してください。</div>`; return; }
+        if (!data || data.length === 0) { box.innerHTML = `<div class="empty-note">まだ預けたファイルはありません。「送る」から追加できます。</div>`; return; }
+
+        box.innerHTML = data.map(it => {
+            const received = it.status === 'received';
+            const locked = it.status === 'locked';
+            const done = received || locked;
+            const sub = received ? '受信: ' + fmtDate(it.received_at)
+                      : locked ? 'パスワードを5回間違えたため無効化されました。削除して預け直してください。'
+                      : '預け入れ: ' + fmtDate(it.created_at);
+            const label = received ? '受信済み' : locked ? 'ロック中' : '保存中';
+            return `
+            <div class="recent-card">
+                <div class="recent-top">
+                    <div class="recent-info">
+                        <h4>📄 ${esc(it.file_name)}</h4>
+                        <span>${fmtSize(it.file_size)} ・ 送り主「${esc(it.sender_name)}」</span>
+                        <span>${esc(sub)}</span>
+                    </div>
+                    <span class="badge ${it.status}">${label}</span>
+                </div>
+                ${done ? '' : expiryBar(it)}
+                <div class="recent-bottom">
+                    ${done ? '<span></span>' : `<span class="code-chip">${esc(it.code)}</span>`}
+                    <div class="card-actions">
+                        ${done ? '' : `<button class="btn-mini" onclick="copyText('${esc(it.code)}')">コードをコピー</button>`}
+                        ${done ? '' : `<button class="btn-mini" onclick="extendItem('${esc(it.id)}')">期限を延長</button>`}
+                        <button class="btn-mini danger" data-id="${esc(it.id)}" data-name="${esc(it.file_name)}" onclick="deleteItem(this.dataset.id, this.dataset.name)">削除</button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+
+    const LIFE_MS = 30 * 24 * 3600 * 1000;
+    function expiryBar(it) {
+        const left = new Date(it.expires_at).getTime() - Date.now();
+        const ratio = Math.max(0, Math.min(1, left / LIFE_MS));
+        const days = Math.ceil(left / 86400000);
+        const cls = days <= 3 ? 'urgent' : days <= 7 ? 'soon' : '';
+        const text = left <= 0 ? '期限切れ' : days <= 1 ? 'あと1日未満' : `あと${days}日`;
+        return `<div><div class="expiry ${cls}"><div style="width:${(ratio * 100).toFixed(1)}%"></div></div>
+                <div class="expiry-label"><span>保存期限</span><b class="${cls}">${text}</b></div></div>`;
+    }
+
+    async function extendItem(id) {
+        const { data, error } = await sb.rpc('vault_extend', { p_id: id, p_owner: ownerKey() });
+        if (error || !data) { toast('延長できませんでした'); return; }
+        toast('期限を30日先まで延長しました');
+        refreshList();
+    }
+
+
+    /* 削除待ちキューの実体を Storage API で消す(失敗しても画面上は問題なし。次回また試す) */
+    async function flushTrash() {
+        if (!sb) return;
+        try {
+            const { data, error } = await sb.rpc('vault_trash_list');
+            if (error || !data || !data.length) return;
+            const paths = data.map(r => r.storage_path);
+            const rm = await sb.storage.from(BUCKET).remove(paths);
+            if (rm.error) { console.warn('storage remove failed:', rm.error); return; }
+            await sb.rpc('vault_trash_done', { p_paths: paths });
+        } catch (e) { console.warn('flushTrash:', e); }
+    }
+
+    async function deleteItem(id, fname) {
+        if (!confirm(`「${fname}」を削除しますか?\n保存中のファイルは受け取れなくなります。`)) return;
+        const { data, error } = await sb.rpc('vault_delete', { p_id: id, p_owner: ownerKey() });
+        if (error) {
+            console.error('vault_delete error:', error);
+            toast('削除に失敗しました: ' + (error.message || '不明なエラー'));
+            return;
+        }
+        if (!data) { toast('削除できませんでした(このデバイスで預けたファイルではないか、すでに削除済みです)'); refreshList(); return; }
+        toast('削除しました');
+        refreshList();
+        flushTrash();
+    }
+
+    /* =========================================================
+       初期化
+       ========================================================= */
+    window.addEventListener('DOMContentLoaded', () => {
+        initSupabase();
+        refreshList();
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexis Code - HTML & DTP Studio</title>
+    <style>
+        :root {
+            /* Nexis Code シアンカラーテーマ */
+            --brand-primary: #00acc1;
+            --brand-dark: #00838f;
+            --brand-light: #e0f7fa;
+            --bg-body: #f0f4f8;
+            --ribbon-bg: #ffffff;
+            --border-color: #cfd8dc;
+            --text-main: #263238;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Meiryo, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background-color: var(--bg-body); color: var(--text-main); overflow: hidden; }
+
+        /* ホーム画面 (Supercell風/Exdocs構造) */
+        .app-home-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #f8f9fa; z-index: 2000; display: flex; flex-direction: column;
+        }
+        .home-header { background: var(--brand-primary); color: white; padding: 24px 48px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .home-header h1 { font-size: 2.2rem; font-weight: 700; }
+        .home-main { padding: 32px 48px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 32px; }
+
+        .section-title { font-size: 1.2rem; font-weight: 700; color: #444; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px; }
+        
+        .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+        .template-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; height: 180px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.04); }
+        .template-card:hover { border-color: var(--brand-primary); transform: translateY(-3px); box-shadow: 0 6px 14px rgba(0,172,193,0.2); }
+        .template-preview { background: #f3f4f8; height: 100px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #777; border: 1px dashed #ccc; }
+
+        .recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+        .recent-card { background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
+        .recent-card:hover { border-color: var(--brand-primary); background: var(--brand-light); }
+        .recent-info h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-main); }
+        .recent-info span { font-size: 0.78rem; color: #888; }
+
+        /* タイトルバー */
+        .title-bar { height: 42px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; user-select: none; }
+        .title-bar .app-info { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+        .doc-title-input { background: rgba(255,255,255,0.15); border: 1px solid transparent; color: white; font-weight: bold; font-size: 0.95rem; padding: 4px 10px; border-radius: 4px; outline: none; width: 260px; }
+        .doc-title-input:focus { border-color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.2); }
+        
+        .btn-header { background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .btn-header:hover { background: rgba(255,255,255,0.35); }
+
+        /* リボンUI */
+        .ribbon-container { background: var(--ribbon-bg); border-bottom: 1px solid var(--border-color); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .ribbon-tabs { display: flex; background: #f3f4f8; border-bottom: 1px solid var(--border-color); padding-left: 16px; }
+        .tab-btn { padding: 9px 20px; border: none; background: transparent; cursor: pointer; font-size: 0.88rem; font-weight: 600; color: #505050; border-bottom: 3px solid transparent; }
+        .tab-btn:hover { color: var(--brand-primary); }
+        .tab-btn.active { color: var(--brand-primary); border-bottom-color: var(--brand-primary); background: #ffffff; }
+
+        .ribbon-toolbar { display: flex; padding: 8px 16px; gap: 20px; align-items: center; height: 95px; overflow-x: auto; }
+        .ribbon-toolbar.hidden { display: none; }
+        
+        .tool-group { display: flex; flex-direction: column; justify-content: space-between; padding-right: 18px; border-right: 1px solid var(--border-color); height: 100%; }
+        .tool-group-title { font-size: 0.72rem; color: #888; text-align: center; margin-top: 4px; font-weight: 600; }
+        .tool-row { display: flex; align-items: center; gap: 4px; }
+
+        .btn-tool { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; height: 30px; min-width: 30px; color: #333; transition: 0.15s; }
+        .btn-tool:hover { background: var(--brand-light); border-color: var(--brand-primary); }
+        
+        select.tool-select, input.tool-input { height: 30px; border: 1px solid #c0c4cc; border-radius: 4px; padding: 0 8px; font-size: 0.85rem; background: white; outline: none; }
+
+        /* ワークスペース */
+        .workspace { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+        /* ビジュアルビュー */
+        .visual-view { display: flex; width: 100%; height: 100%; }
+        .canvas-area { flex: 1; background: #eceff1; overflow: auto; padding: 40px; display: flex; justify-content: center; align-items: flex-start; }
+        .pub-page { background: white; box-shadow: 0 8px 24px rgba(0,0,0,0.12); position: relative; transform-origin: top center; overflow: hidden; }
+
+        /* プロパティパネル (右側) */
+        .properties-panel {
+            width: 260px; background: white; border-left: 1px solid var(--border-color);
+            padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto;
+        }
+        .panel-heading { font-size: 0.9rem; font-weight: bold; color: var(--brand-primary); margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; }
+        .prop-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 0.85rem; }
+        .prop-row label { color: #546e7a; font-weight: 600; }
+        .prop-row select, .prop-row input[type="text"] { width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; outline: none; }
+        .prop-row select:focus, .prop-row input[type="text"]:focus { border-color: var(--brand-primary); }
+
+        /* キャンバス要素 */
+        .page-element {
+            position: absolute; min-width: 30px; min-height: 20px; box-sizing: border-box;
+            cursor: move; user-select: none; border: 1px solid transparent;
+        }
+        .page-element.selected { border: 1px dashed var(--brand-primary) !important; outline: 1px solid rgba(0,172,193,0.3); z-index: 1000 !important; }
+        .page-element .element-content { width: 100%; height: 100%; outline: none; word-wrap: break-word; overflow: hidden; }
+        .page-element img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+        
+        .resize-handle { width: 8px; height: 8px; background: var(--brand-primary); border: 1px solid white; position: absolute; display: none; }
+        .page-element.selected .resize-handle { display: block; }
+        .handle-se { right: -4px; bottom: -4px; cursor: se-resize; }
+        .handle-sw { left: -4px; bottom: -4px; cursor: sw-resize; }
+        .handle-ne { right: -4px; top: -4px; cursor: ne-resize; }
+        .handle-nw { left: -4px; top: -4px; cursor: nw-resize; }
+
+        /* コードビュー */
+        .code-view { display: none; width: 100%; height: 100%; background: #1e1e1e; }
+        .editor-textarea {
+            width: 100%; height: 100%; background: transparent; color: #d4d4d4; padding: 20px;
+            font-family: 'Consolas', monospace; font-size: 14px; border: none; outline: none; resize: none;
+        }
+
+        /* ステータスバー */
+        .status-bar { height: 26px; background: var(--brand-primary); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 0.78rem; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+    <!-- アプリ専用ホーム画面 (Supercell風) -->
+    <div class="app-home-overlay" id="appHome">
+        <div class="home-header">
+            <div>
+                <h1>Nexis Code</h1>
+                <p>Webページレイアウト・DTPドキュメント・HTML統合開発エディタ</p>
+            </div>
+            <button class="btn-header" onclick="location.href='Nexis_OffiSuite.html'" style="font-size:1rem; padding:8px 18px;">← Suiteポータルへ</button>
+        </div>
+        <div class="home-main">
+            <div>
+                <div class="section-title">新規プロジェクトを作成</div>
+                <div class="template-grid">
+                    <div class="template-card" onclick="startNewDoc('a4-portrait')">
+                        <div class="template-preview">📄 A4 縦</div>
+                        <div style="font-weight:700;">白紙ドキュメント</div>
+                    </div>
+                    <div class="template-card" onclick="startNewDoc('web')">
+                        <div class="template-preview" style="background:#e0f7fa; color:#00838f;">🌐 Web LP</div>
+                        <div style="font-weight:700;">ランディングページ</div>
+                    </div>
+                    <div class="template-card" onclick="document.getElementById('homeFileInput').click()">
+                        <div class="template-preview" style="background:#00acc1; color:white;">📂 ファイルを開く</div>
+                        <div style="font-weight:700;">.nxcd / .pub / .html</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">最近使ったファイル</div>
+                <div class="recent-grid" id="recentFileList"></div>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="homeFileInput" style="display:none;" onchange="loadNxcdFile(event)" accept=".nxcd,.pub,.html">
+    <input type="file" id="imageInput" style="display:none;" onchange="handleImageUpload(event)" accept="image/*">
+
+    <!-- タイトルバー -->
+    <div class="title-bar">
+        <div class="app-info">
+            <button class="btn-header" onclick="showHome()">← ホーム</button>
+            <span>🌐 Nexis Code</span>
+            <input type="text" id="docName" class="doc-title-input" value="無題のドキュメント.nxcd">
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-header" id="btnModeVisual" onclick="switchMode('visual')" style="background:rgba(255,255,255,0.35);">🎨 ビジュアル</button>
+            <button class="btn-header" id="btnModeCode" onclick="switchMode('code')">💻 コード</button>
+            <button class="btn-header" style="background:#00838f;" onclick="saveNxcdFile()">💾 .nxcd 保存</button>
+            <button class="btn-header" onclick="exportHTML()">🌐 HTML出力</button>
+        </div>
+    </div>
+
+    <!-- リボンバー -->
+    <div class="ribbon-container" id="ribbonContainer">
+        <div class="ribbon-tabs">
+            <button class="tab-btn active" onclick="switchTab(event, 'insert')">挿入 / 要素</button>
+            <button class="tab-btn" onclick="switchTab(event, 'style')">スタイル / 書式</button>
+            <button class="tab-btn" onclick="switchTab(event, 'layout')">ページレイアウト</button>
+        </div>
+
+        <!-- 挿入タブ -->
+        <div class="ribbon-toolbar" id="tab-insert">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="addTextElement()">📝 テキスト</button>
+                    <button class="btn-tool" onclick="document.getElementById('imageInput').click()">🖼️ 画像</button>
+                    <button class="btn-tool" onclick="addShapeElement('rect')">🟩 図形</button>
+                    <button class="btn-tool" onclick="addShapeElement('button')">🔘 ボタン</button>
+                </div>
+                <div class="tool-group-title">エレメント挿入</div>
+            </div>
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="changeZIndex(1)">⇧ 前面へ</button>
+                    <button class="btn-tool" onclick="changeZIndex(-1)">⇩ 背面へ</button>
+                    <button class="btn-tool" style="color:#d32f2f;" onclick="deleteSelected()">🗑️ 削除</button>
+                </div>
+                <div class="tool-group-title">配置操作</div>
+            </div>
+        </div>
+
+        <!-- スタイルタブ -->
+        <div class="ribbon-toolbar hidden" id="tab-style">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <select class="tool-select" onchange="applyStyle('fontFamily', this.value)">
+                        <option value="Segoe UI">Segoe UI</option>
+                        <option value="メイリオ">メイリオ</option>
+                        <option value="游ゴシック">游ゴシック</option>
+                        <option value="Arial">Arial</option>
+                    </select>
+                    <select class="tool-select" onchange="applyStyle('fontSize', this.value)" style="width:70px;">
+                        <option value="12px">12px</option>
+                        <option value="16px" selected>16px</option>
+                        <option value="20px">20px</option>
+                        <option value="24px">24px</option>
+                        <option value="32px">32px</option>
+                    </select>
+                </div>
+                <div class="tool-row">
+                    <input type="color" onchange="applyStyle('color', this.value)" title="文字色" style="width:28px; height:28px; border:none; cursor:pointer;">
+                    <input type="color" onchange="applyStyle('backgroundColor', this.value)" value="#ffffff" title="背景色" style="width:28px; height:28px; border:none; cursor:pointer;">
+                </div>
+                <div class="tool-group-title">フォント & カラー</div>
+            </div>
+        </div>
+
+        <!-- レイアウトタブ -->
+        <div class="ribbon-toolbar hidden" id="tab-layout">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <select class="tool-select" onchange="changePageSize(this.value)">
+                        <option value="a4-portrait">サイズ: A4 縦</option>
+                        <option value="web">サイズ: Web (LP)</option>
+                    </select>
+                    <input type="color" onchange="document.getElementById('pubPage').style.backgroundColor = this.value" value="#ffffff" title="ページ背景色" style="width:28px; height:28px; border:none;">
+                </div>
+                <div class="tool-group-title">キャンバス設定</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ワークスペース -->
+    <div class="workspace">
+        <!-- ビジュアルモード -->
+        <div class="visual-view" id="visualView">
+            <div class="canvas-area" onclick="deselectAll(event)">
+                <div class="pub-page" id="pubPage" style="width: 800px; height: 1130px; background-color: #ffffff;"></div>
+            </div>
+            
+            <!-- プロパティパネル (右側) -->
+            <div class="properties-panel">
+                <div class="panel-heading">⚡ アクション設定</div>
+                <div style="font-size: 0.8rem; color:#78909c; margin-bottom:8px;">選択要素のクリック動作を設定します。</div>
+                <div class="prop-row">
+                    <label>動作タイプ</label>
+                    <select id="actionType" onchange="updateAction()">
+                        <option value="none">なし</option>
+                        <option value="link">URLへ遷移 (リンク)</option>
+                        <option value="modal">ウィンドウ表示 (モーダル)</option>
+                        <option value="alert">アラート表示</option>
+                    </select>
+                </div>
+                <div class="prop-row">
+                    <label>値 (URL または 表示テキスト)</label>
+                    <input type="text" id="actionValue" placeholder="https://... または テキスト" oninput="updateAction()">
+                </div>
+            </div>
+        </div>
+
+        <!-- コードモード -->
+        <div class="code-view" id="codeView">
+            <textarea class="editor-textarea" id="codeTextarea" spellcheck="false"></textarea>
+        </div>
+    </div>
+
+    <!-- ステータスバー -->
+    <div class="status-bar">
+        <div>
+            <span id="statElements">要素数: 0</span> | 
+            <span id="statMode">モード: ビジュアル</span>
+        </div>
+        <div>Nexis Code Engine v3.5 | Integrated Studio</div>
+    </div>
+
+    <script>
+        let currentMode = 'visual';
+        let elementCounter = 0;
+        let selectedElement = null;
+        let isDragging = false, isResizing = false;
+        let startX, startY, initialW, initialH, initialL, initialT, currentHandle = '';
+
+        // --- ホーム画面制御 ---
+        function showHome() {
+            renderRecentFiles();
+            document.getElementById('appHome').style.display = 'flex';
+        }
+
+        function startNewDoc(type) {
+            document.getElementById('appHome').style.display = 'none';
+            document.getElementById('pubPage').innerHTML = '';
+            elementCounter = 0;
+            
+            if (type === 'a4-portrait') {
+                changePageSize('a4-portrait');
+                document.getElementById('docName').value = '無題のドキュメント.nxcd';
+                addTextElement('<h1>タイトル</h1><p>テキストを入力...</p>', 50, 50, 400, 100);
+            } else if (type === 'web') {
+                changePageSize('web');
+                document.getElementById('docName').value = 'ランディングページ.nxcd';
+                addShapeElement('rect', 0, 0, 1000, 200);
+                document.getElementById('elem_' + elementCounter).style.backgroundColor = '#00acc1';
+                addTextElement('<h1 style="color:white;text-align:center;">メインコピー</h1>', 100, 50, 800, 100);
+            }
+            updateStats();
+        }
+
+        // --- リボンタブ切替 ---
+        function switchTab(evt, tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.ribbon-toolbar').forEach(t => t.classList.add('hidden'));
+            evt.currentTarget.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        }
+
+        // --- モード切替 ---
+        function switchMode(mode) {
+            if (currentMode === mode) return;
+            const btnVis = document.getElementById('btnModeVisual');
+            const btnCode = document.getElementById('btnModeCode');
+            const ribbon = document.getElementById('ribbonContainer');
+            
+            if (mode === 'code') {
+                document.getElementById('codeTextarea').value = generateHTML();
+                document.getElementById('visualView').style.display = 'none';
+                ribbon.style.display = 'none';
+                document.getElementById('codeView').style.display = 'block';
+                btnVis.style.background = 'rgba(255,255,255,0.2)';
+                btnCode.style.background = 'rgba(255,255,255,0.4)';
+                document.getElementById('statMode').textContent = 'モード: コード';
+            } else {
+                parseHTML(document.getElementById('codeTextarea').value);
+                document.getElementById('codeView').style.display = 'none';
+                document.getElementById('visualView').style.display = 'flex';
+                ribbon.style.display = 'block';
+                btnCode.style.background = 'rgba(255,255,255,0.2)';
+                btnVis.style.background = 'rgba(255,255,255,0.4)';
+                document.getElementById('statMode').textContent = 'モード: ビジュアル';
+            }
+            currentMode = mode;
+        }
+
+        // --- キャンバス要素追加 ---
+        function createElementBase(left, top, width, height) {
+            elementCounter++;
+            const el = document.createElement('div');
+            el.className = 'page-element';
+            el.id = 'elem_' + elementCounter;
+            el.style.left = left + 'px'; el.style.top = top + 'px';
+            el.style.width = width + 'px'; el.style.height = height + 'px';
+            el.style.zIndex = elementCounter;
+
+            ['nw', 'ne', 'sw', 'se'].forEach(pos => {
+                const handle = document.createElement('div');
+                handle.className = `resize-handle handle-${pos}`;
+                handle.dataset.handle = pos;
+                el.appendChild(handle);
+            });
+
+            el.addEventListener('mousedown', handleMouseDown);
+            document.getElementById('pubPage').appendChild(el);
+            selectElement(el);
+            updateStats();
+            return el;
+        }
+
+        function addTextElement(html = 'テキスト', l=50, t=50, w=200, h=60) {
+            const el = createElementBase(l, t, w, h);
+            const content = document.createElement('div');
+            content.className = 'element-content';
+            content.contentEditable = true;
+            content.innerHTML = html;
+            el.appendChild(content);
+        }
+
+        function addShapeElement(type, l=50, t=50, w=150, h=50) {
+            const el = createElementBase(l, t, w, h);
+            if (type === 'rect') {
+                el.style.backgroundColor = '#e0f7fa';
+                el.style.border = '1px solid #00acc1';
+            } else if (type === 'button') {
+                el.style.backgroundColor = '#00acc1';
+                el.style.borderRadius = '4px';
+                const content = document.createElement('div');
+                content.className = 'element-content';
+                content.contentEditable = true;
+                content.innerHTML = '<div style="color:white; text-align:center; display:flex; align-items:center; justify-content:center; height:100%; font-weight:bold;">ボタン</div>';
+                el.appendChild(content);
+            }
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const el = createElementBase(80, 80, 300, 200);
+                const img = document.createElement('img');
+                img.src = event.target.result;
+                el.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        }
+
+        // --- ドラッグ＆リサイズ ---
+        function handleMouseDown(e) {
+            e.stopPropagation();
+            selectElement(e.currentTarget);
+            if (e.target.classList.contains('resize-handle')) {
+                isResizing = true;
+                currentHandle = e.target.dataset.handle;
+                startX = e.pageX; startY = e.pageY;
+                initialW = parseFloat(selectedElement.style.width);
+                initialH = parseFloat(selectedElement.style.height);
+                initialL = parseFloat(selectedElement.style.left);
+                initialT = parseFloat(selectedElement.style.top);
+            } else {
+                isDragging = true;
+                startX = e.pageX - parseFloat(selectedElement.style.left);
+                startY = e.pageY - parseFloat(selectedElement.style.top);
+            }
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        function handleMouseMove(e) {
+            if (!selectedElement) return;
+            if (isDragging) {
+                selectedElement.style.left = (e.pageX - startX) + 'px';
+                selectedElement.style.top = (e.pageY - startY) + 'px';
+            } else if (isResizing) {
+                const dx = e.pageX - startX; const dy = e.pageY - startY;
+                if (currentHandle.includes('e')) selectedElement.style.width = Math.max(20, initialW + dx) + 'px';
+                if (currentHandle.includes('s')) selectedElement.style.height = Math.max(20, initialH + dy) + 'px';
+                if (currentHandle.includes('w')) {
+                    const nw = Math.max(20, initialW - dx);
+                    selectedElement.style.width = nw + 'px';
+                    selectedElement.style.left = (initialL + (initialW - nw)) + 'px';
+                }
+                if (currentHandle.includes('n')) {
+                    const nh = Math.max(20, initialH - dy);
+                    selectedElement.style.height = nh + 'px';
+                    selectedElement.style.top = (initialT + (initialH - nh)) + 'px';
+                }
+            }
+        }
+
+        function handleMouseUp() {
+            isDragging = false; isResizing = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        }
+
+        // --- 要素選択 / アクション ---
+        function selectElement(el) {
+            document.querySelectorAll('.page-element').forEach(e => e.classList.remove('selected'));
+            selectedElement = el;
+            el.classList.add('selected');
+            document.getElementById('actionType').value = el.dataset.actionType || 'none';
+            document.getElementById('actionValue').value = el.dataset.actionValue || '';
+        }
+
+        function deselectAll(e) {
+            if (e && e.target.closest('.page-element')) return;
+            document.querySelectorAll('.page-element').forEach(e => e.classList.remove('selected'));
+            selectedElement = null;
+        }
+
+        function applyStyle(prop, val) {
+            if (!selectedElement) return;
+            const content = selectedElement.querySelector('.element-content');
+            if (content && ['fontFamily', 'fontSize', 'color'].includes(prop)) {
+                content.style[prop] = val;
+            } else {
+                selectedElement.style[prop] = val;
+            }
+        }
+
+        function changeZIndex(d) {
+            if (!selectedElement) return;
+            selectedElement.style.zIndex = Math.max(1, parseInt(selectedElement.style.zIndex || 1) + d);
+        }
+
+        function deleteSelected() {
+            if (selectedElement) { selectedElement.remove(); selectedElement = null; updateStats(); }
+        }
+
+        function updateAction() {
+            if (!selectedElement) return;
+            selectedElement.dataset.actionType = document.getElementById('actionType').value;
+            selectedElement.dataset.actionValue = document.getElementById('actionValue').value;
+        }
+
+        function changePageSize(preset) {
+            const page = document.getElementById('pubPage');
+            if (preset === 'a4-portrait') { page.style.width = '800px'; page.style.height = '1130px'; }
+            else if (preset === 'web') { page.style.width = '1000px'; page.style.height = '2000px'; }
+        }
+
+        function updateStats() {
+            const count = document.querySelectorAll('.page-element').length;
+            document.getElementById('statElements').textContent = `要素数: ${count}`;
+        }
+
+        // --- 最近のファイル管理 (ローカルストレージ) ---
+        function saveToRecent(filename, htmlData) {
+            let recent = JSON.parse(localStorage.getItem('NEXIS_CODE_RECENT') || '[]');
+            recent = recent.filter(item => item.name !== filename);
+            recent.unshift({
+                name: filename,
+                content: htmlData,
+                date: new Date().toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            });
+            if (recent.length > 6) recent.pop();
+            localStorage.setItem('NEXIS_CODE_RECENT', JSON.stringify(recent));
+            renderRecentFiles();
+        }
+
+        function renderRecentFiles() {
+            const listContainer = document.getElementById('recentFileList');
+            const recent = JSON.parse(localStorage.getItem('NEXIS_CODE_RECENT') || '[]');
+            if (recent.length === 0) {
+                listContainer.innerHTML = '<div style="color:#888; grid-column: 1/-1;">最近開いたファイルはありません</div>';
+                return;
+            }
+            listContainer.innerHTML = recent.map((item, idx) => `
+                <div class="recent-card" onclick="loadRecentDoc(${idx})">
+                    <div class="recent-info">
+                        <h4>🌐 ${item.name}</h4>
+                        <span>最終閲覧: ${item.date}</span>
+                    </div>
+                    <span style="color:var(--brand-primary); font-weight:bold;">開く →</span>
+                </div>
+            `).join('');
+        }
+
+        function loadRecentDoc(idx) {
+            const recent = JSON.parse(localStorage.getItem('NEXIS_CODE_RECENT') || '[]');
+            const doc = recent[idx];
+            if (doc) {
+                document.getElementById('docName').value = doc.name;
+                document.getElementById('codeTextarea').value = doc.content;
+                parseHTML(doc.content);
+                document.getElementById('appHome').style.display = 'none';
+            }
+        }
+
+        // --- HTML生成 / 入力解析 ---
+        function generateHTML() {
+            const page = document.getElementById('pubPage').cloneNode(true);
+            let hasModal = false;
+
+            page.querySelectorAll('.resize-handle').forEach(h => h.remove());
+            page.querySelectorAll('.page-element').forEach(el => {
+                el.classList.remove('selected');
+                const content = el.querySelector('.element-content');
+                if (content) content.removeAttribute('contenteditable');
+
+                const aType = el.dataset.actionType;
+                const aVal = el.dataset.actionValue;
+                if (aType === 'link' && aVal) {
+                    el.setAttribute('onclick', `location.href='${aVal}'`);
+                    el.style.cursor = 'pointer';
+                } else if (aType === 'alert' && aVal) {
+                    el.setAttribute('onclick', `alert('${aVal}')`);
+                    el.style.cursor = 'pointer';
+                } else if (aType === 'modal' && aVal) {
+                    hasModal = true;
+                    el.setAttribute('onclick', `showModal('${aVal}')`);
+                    el.style.cursor = 'pointer';
+                }
+            });
+
+            let modalScript = '';
+            if (hasModal) {
+                modalScript = `
+                <div id="nc-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:white; padding:30px; border-radius:8px; max-width:400px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+                        <p id="nc-modal-text" style="margin-bottom:20px; font-size:1.1rem; color:#263238;"></p>
+                        <button onclick="document.getElementById('nc-modal').style.display='none'" style="background:#00acc1; color:white; border:none; padding:8px 24px; border-radius:4px; cursor:pointer;">閉じる</button>
+                    </div>
+                </div>
+                <script>
+                    function showModal(text) {
+                        document.getElementById('nc-modal-text').innerText = text;
+                        document.getElementById('nc-modal').style.display = 'flex';
+                    }
+                <\/script>`;
+            }
+
+            return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>${document.getElementById('docName').value.replace(/\.(nxcd|pub|html)$/,'')}</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #eceff1; display: flex; justify-content: center; font-family: 'Segoe UI', sans-serif;}
+        .pub-page { position: relative; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .page-element { position: absolute; box-sizing: border-box; }
+        .element-content { width: 100%; height: 100%; word-wrap: break-word; overflow: hidden; }
+        .page-element img { width: 100%; height: 100%; object-fit: cover; }
+    </style>
+</head>
+<body>
+${page.outerHTML}
+${modalScript}
+</body>
+</html>`;
+        }
+
+        function parseHTML(htmlCode) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlCode, 'text/html');
+            const importedPage = doc.querySelector('.pub-page');
+            if (importedPage) {
+                const pubPage = document.getElementById('pubPage');
+                pubPage.style.cssText = importedPage.style.cssText;
+                pubPage.innerHTML = importedPage.innerHTML;
+
+                pubPage.querySelectorAll('.page-element').forEach(el => {
+                    el.addEventListener('mousedown', handleMouseDown);
+                    const content = el.querySelector('.element-content');
+                    if (content) content.contentEditable = true;
+                    if (!el.querySelector('.resize-handle')) {
+                        ['nw', 'ne', 'sw', 'se'].forEach(pos => {
+                            const handle = document.createElement('div');
+                            handle.className = `resize-handle handle-${pos}`;
+                            handle.dataset.handle = pos;
+                            el.appendChild(handle);
+                        });
+                    }
+                });
+            }
+            updateStats();
+        }
+
+        // --- ファイル入出力 (.nxcd) ---
+        function saveNxcdFile() {
+            let filename = document.getElementById('docName').value;
+            if (!filename.endsWith('.nxcd')) filename = filename.replace(/\.(pub|html)$/, '') + '.nxcd';
+            document.getElementById('docName').value = filename;
+
+            const html = currentMode === 'code' ? document.getElementById('codeTextarea').value : generateHTML();
+            saveToRecent(filename, html);
+
+            const payload = JSON.stringify({
+                app: 'Nexis Code',
+                version: '3.5',
+                sourceHtml: html
+            }, null, 2);
+
+            downloadBlob(payload, filename, 'application/json');
+        }
+
+        function exportHTML() {
+            let filename = document.getElementById('docName').value.replace(/\.(nxcd|pub)$/, '') + '.html';
+            const html = currentMode === 'code' ? document.getElementById('codeTextarea').value : generateHTML();
+            downloadBlob(html, filename, 'text/html');
+        }
+
+        function downloadBlob(content, filename, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+        }
+
+        function loadNxcdFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            document.getElementById('docName').value = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const content = evt.target.result;
+                try {
+                    const parsed = JSON.parse(content);
+                    const sourceHtml = parsed.sourceHtml || content;
+                    document.getElementById('codeTextarea').value = sourceHtml;
+                    parseHTML(sourceHtml);
+                    saveToRecent(file.name, sourceHtml);
+                } catch (err) {
+                    document.getElementById('codeTextarea').value = content;
+                    parseHTML(content);
+                    saveToRecent(file.name, content);
+                }
+                document.getElementById('appHome').style.display = 'none';
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderRecentFiles();
+        });
+    </script>
+</body>
+</html>
