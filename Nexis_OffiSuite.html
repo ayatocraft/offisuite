@@ -14,6 +14,8 @@
             --grad-note: linear-gradient(135deg, #9b51e0, #7719aa);
             --grad-access: linear-gradient(135deg, #e81123, #a4262c);
 			--grad-print: linear-gradient(135deg, #FFD700, #FFFF00);
+			--grad-code: linear-gradient(135deg, #7FFFD4, #00FFFF);
+			--grad-vault: linear-gradient(135deg, #1E90FF, #00BFFF);
             --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.06);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Meiryo, sans-serif; }
@@ -48,6 +50,8 @@
         .note .app-badge { background: var(--grad-note); }
         .access .app-badge { background: var(--grad-access); }
 		.print .app-badge { background: var(--grad-print); }
+		.vault .app-badge { background: var(--grad-vault); }
+		.code .app-badge { background: var(--grad-code); }
 
         .app-title { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
         .app-ext { font-size: 0.75rem; color: #666; background: #f0f2f5; padding: 2px 6px; border-radius: 4px; align-self: flex-start; }
@@ -106,6 +110,16 @@
                 <div class="app-badge">P</div>
                 <div class="app-title">Nexis Print</div>
                 <div class="app-ext">Microsoft Officeファイル、Nexisファイル、.txtを印刷できます。</div>
+            </div>
+			<div class="app-card vault" onclick="location.href='Nexis_Vault.html'">
+                <div class="app-badge">V</div>
+                <div class="app-title">Nexis Vault</div>
+                <div class="app-ext">クラウドにファイルを一時保存</div>
+            </div>
+			<div class="app-card code" onclick="location.href='Nexis_Code.html'">
+                <div class="app-badge">C</div>
+                <div class="app-title">Nexis Code</div>
+                <div class="app-ext">HTMLページを簡単に作る</div>
             </div>
         </div>
     </main>
