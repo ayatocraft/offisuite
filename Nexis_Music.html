@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexis Music - MIDI Import Studio</title>
+    <style>
+        :root {
+            --brand-primary: #dc2626;
+            --brand-dark: #7f1d1d;
+            --brand-deep-dark: #450a0a;
+            --brand-accent: #f87171;
+            --bg-body: #09090b;
+            --bg-card: #18181b;
+            --ribbon-bg: #121215;
+            --border-color: #27272a;
+            --text-main: #f4f4f5;
+            --text-muted: #a1a1aa;
+            --header-grad: linear-gradient(135deg, #000000 0%, #450a0a 50%, #dc2626 100%);
+            --card-grad: linear-gradient(145deg, #18181b 0%, #27272a 100%);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Meiryo, sans-serif; }
+        body { display: flex; flex-direction: column; height: 100vh; background-color: var(--bg-body); color: var(--text-main); overflow: hidden; user-select: none; }
+
+        /* スタジオホーム画面 */
+        .app-home-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #09090b; z-index: 2000; display: flex; flex-direction: column;
+        }
+        .home-header { background: var(--header-grad); color: white; padding: 24px 48px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3); }
+        .home-header h1 { font-size: 2.2rem; font-weight: 700; letter-spacing: 1px; }
+        .home-main { padding: 32px 48px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 32px; }
+
+        .section-title { font-size: 1.2rem; font-weight: 700; color: #e4e4e7; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px; }
+        .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .template-card { background: var(--card-grad); border: 1px solid var(--border-color); border-radius: 10px; height: 180px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
+        .template-card:hover { border-color: var(--brand-primary); transform: translateY(-3px); box-shadow: 0 6px 18px rgba(220, 38, 38, 0.25); }
+        .template-preview { background: rgba(0,0,0,0.6); height: 90px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 2rem; border: 1px dashed var(--brand-primary); color: var(--brand-accent); }
+
+        /* タイトルバー */
+        .title-bar { height: 44px; background: var(--header-grad); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid rgba(220, 38, 38, 0.3); }
+        .title-bar .app-info { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+        .doc-title-input { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.1); color: white; font-weight: bold; font-size: 0.95rem; padding: 4px 10px; border-radius: 4px; outline: none; width: 220px; }
+        
+        .btn-header { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .btn-header:hover { background: var(--brand-primary); border-color: var(--brand-primary); }
+
+        /* リボンUI */
+        .ribbon-container { background: var(--ribbon-bg); border-bottom: 1px solid var(--border-color); }
+        .ribbon-tabs { display: flex; background: #000000; border-bottom: 1px solid var(--border-color); padding-left: 16px; }
+        .tab-btn { padding: 9px 20px; border: none; background: transparent; cursor: pointer; font-size: 0.88rem; font-weight: 600; color: var(--text-muted); border-bottom: 3px solid transparent; }
+        .tab-btn:hover { color: var(--brand-accent); }
+        .tab-btn.active { color: var(--brand-primary); border-bottom-color: var(--brand-primary); background: var(--ribbon-bg); }
+
+        .ribbon-toolbar { display: flex; padding: 8px 16px; gap: 20px; align-items: center; height: 95px; overflow-x: auto; }
+        .ribbon-toolbar.hidden { display: none; }
+        
+        .tool-group { display: flex; flex-direction: column; justify-content: space-between; padding-right: 18px; border-right: 1px solid var(--border-color); height: 100%; }
+        .tool-group-title { font-size: 0.72rem; color: var(--text-muted); text-align: center; margin-top: 4px; font-weight: 600; }
+        .tool-row { display: flex; align-items: center; gap: 6px; }
+
+        .btn-tool { background: #18181b; border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.82rem; height: 32px; color: var(--text-main); transition: 0.15s; font-weight: 500; }
+        .btn-tool:hover { background: var(--brand-dark); border-color: var(--brand-primary); color: white; }
+        .select-tool { background: #18181b; border: 1px solid var(--border-color); color: white; height: 32px; padding: 0 8px; border-radius: 4px; font-size: 0.82rem; outline: none; }
+
+        /* ワークスペース */
+        .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #000000; position: relative; }
+
+        /* トラック＆タイムライン */
+        .studio-container { flex: 1; display: flex; overflow: hidden; }
+        .track-controls { width: 320px; background: #121215; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; overflow-y: auto; }
+        .track-control-header { padding: 10px 14px; background: #09090b; font-size: 0.8rem; font-weight: bold; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+
+        .track-header-card { height: 75px; background: #18181b; border-bottom: 1px solid var(--border-color); padding: 8px 12px; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; }
+        .track-header-card.active { border-left: 4px solid var(--brand-primary); background: #27272a; }
+        .track-title-row { display: flex; justify-content: space-between; align-items: center; }
+        .track-name { font-weight: 600; font-size: 0.88rem; border: none; background: transparent; color: white; outline: none; width: 120px; }
+        .track-type-badge { font-size: 0.7rem; background: var(--brand-dark); color: white; padding: 2px 6px; border-radius: 4px; }
+        .track-knobs { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); }
+
+        .timeline-container { flex: 1; background: #050505; overflow-x: auto; overflow-y: auto; display: flex; flex-direction: column; position: relative; }
+        .timeline-header { height: 32px; background: #09090b; border-bottom: 1px solid var(--border-color); display: flex; position: sticky; top: 0; z-index: 10; }
+        .timeline-step-label { width: 40px; min-width: 40px; border-right: 1px solid #18181b; text-align: center; font-size: 0.7rem; line-height: 32px; color: var(--text-muted); }
+
+        .track-lane { height: 75px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; background: #0d0d10; }
+        .step-cell { width: 40px; min-width: 40px; height: 100%; border-right: 1px solid #18181b; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
+        .step-cell:nth-child(4n) { border-right-color: #27272a; }
+        .step-cell:hover { background: rgba(220, 38, 38, 0.2); }
+        .step-cell.active { background: var(--brand-primary); box-shadow: inset 0 0 8px rgba(0,0,0,0.5); }
+        .step-cell.playing { border: 2px solid #ffffff; }
+
+        /* 本格キーボード / パーカッションデッキ */
+        .instrument-deck { height: 210px; background: #121215; border-top: 2px solid var(--border-color); display: flex; flex-direction: column; }
+        .deck-header { height: 32px; background: #09090b; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: bold; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
+        
+        .piano-container { flex: 1; display: flex; justify-content: center; padding: 8px; overflow-x: auto; background: #000000; align-items: flex-start; }
+        .piano-keyboard { display: flex; position: relative; height: 150px; user-select: none; }
+        
+        .key-white { width: 42px; height: 100%; background: #f4f4f5; border: 1px solid #18181b; border-radius: 0 0 5px 5px; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 8px; font-size: 0.75rem; color: #27272a; font-weight: bold; position: relative; z-index: 1; }
+        .key-white:active, .key-white.active { background: var(--brand-primary); color: white; transform: translateY(2px); }
+        
+        .key-black { width: 26px; height: 60%; background: #18181b; border: 1px solid #000; border-radius: 0 0 4px 4px; cursor: pointer; position: absolute; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 6px; font-size: 0.65rem; color: var(--brand-accent); font-weight: bold; margin-left: -13px; }
+        .key-black:active, .key-black.active { background: var(--brand-accent); color: black; transform: translateY(2px); }
+
+        .key-hint { font-size: 0.65rem; background: rgba(0,0,0,0.15); padding: 2px 4px; border-radius: 3px; margin-top: 4px; }
+        .key-black .key-hint { background: rgba(255,255,255,0.2); color: white; }
+
+        .pad-grid { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; padding: 12px; background: #000; overflow-y: auto; }
+        .pad-btn { background: var(--card-grad); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; color: white; font-weight: bold; font-size: 0.85rem; transition: 0.1s; gap: 4px; }
+        .pad-btn:active, .pad-btn.active { background: var(--brand-primary); box-shadow: 0 0 14px var(--brand-primary); transform: scale(0.98); }
+        .pad-sub { font-size: 0.7rem; color: var(--text-muted); font-weight: normal; }
+
+        /* ステータスバー */
+        .status-bar { height: 26px; background: var(--header-grad); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 0.78rem; font-weight: 500; border-top: 1px solid rgba(220, 38, 38, 0.3); }
+    </style>
+</head>
+<body>
+
+    <!-- 非表示ファイルインプット (MIDI / Project / Audio) -->
+    <input type="file" id="midiFileInput" style="display:none;" onchange="handleMidiUpload(event)" accept=".mid,.midi">
+    <input type="file" id="projectFileInput" style="display:none;" onchange="loadProjectFile(event)" accept=".nmusic">
+
+    <!-- アプリホーム画面 -->
+    <div class="app-home-overlay" id="appHome">
+        <div class="home-header">
+            <div>
+                <h1>Nexis Music</h1>
+                <p>MIDIファイルインポート対応・本格多重録音 & レイヤー編集スタジオ</p>
+            </div>
+            <button class="btn-header" onclick="location.href='Nexis_OffiSuite.html'" style="font-size:1rem; padding:8px 18px;">← Suiteポータルへ</button>
+        </div>
+        <div class="home-main">
+            <div>
+                <div class="section-title">新規プロジェクト作成 / 外部ファイルインポート</div>
+                <div class="template-grid">
+                    <div class="template-card" onclick="triggerMidiUpload()">
+                        <div class="template-preview" style="background:var(--brand-dark);">🎼</div>
+                        <div>
+                            <div style="font-weight:700;">MIDIファイル読込 (.mid)</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">MIDI曲データを解析・全トラック展開</div>
+                        </div>
+                    </div>
+                    <div class="template-card" onclick="startNewProject('orchestral')">
+                        <div class="template-preview">🎻</div>
+                        <div>
+                            <div style="font-weight:700;">Orchestral Session</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">グランドピアノ, 金管, 木管, 弦楽</div>
+                        </div>
+                    </div>
+                    <div class="template-card" onclick="startNewProject('brassband')">
+                        <div class="template-preview">🎺</div>
+                        <div>
+                            <div style="font-weight:700;">Brass Ensemble</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">トランペット, サックス, トロンボーン</div>
+                        </div>
+                    </div>
+                    <div class="template-card" onclick="startNewProject('blank')">
+                        <div class="template-preview">🎹</div>
+                        <div>
+                            <div style="font-weight:700;">グランドピアノ ソロ</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">リアルタイム演奏 & メロディ作成</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- タイトルバー -->
+    <div class="title-bar">
+        <div class="app-info">
+            <button class="btn-header" onclick="showHome()">← ホーム</button>
+            <span>🎵 Nexis Music</span>
+            <input type="text" id="docName" class="doc-title-input" value="Imported_Sequence.nmusic">
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-header" onclick="triggerMidiUpload()">🎼 MIDI読込</button>
+            <button class="btn-header" onclick="togglePlay()"><span id="playIcon">▶ 再生</span></button>
+            <button class="btn-header" onclick="stopPlay()">⏹ 停止</button>
+            <button class="btn-header" onclick="saveProject()">💾 保存</button>
+        </div>
+    </div>
+
+    <!-- リボンバー -->
+    <div class="ribbon-container">
+        <div class="ribbon-tabs">
+            <button class="tab-btn active" onclick="switchTab(event, 'tracks')">トラック / レイヤー</button>
+            <button class="tab-btn" onclick="switchTab(event, 'instruments')">楽器ライブラリ</button>
+            <button class="tab-btn" onclick="switchTab(event, 'keyboard')">PCキーボード設定</button>
+        </div>
+
+        <!-- トラック設定 -->
+        <div class="ribbon-toolbar" id="tab-tracks">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="triggerMidiUpload()">🎼 MIDIファイルインポート</button>
+                    <button class="btn-tool" onclick="addTrack('piano', 'Grand Piano')">🎹 ピアノ</button>
+                    <button class="btn-tool" onclick="addTrack('trumpet', 'Brass Layer')">🎺 金管</button>
+                    <button class="btn-tool" onclick="addTrack('flute', 'Woodwind Layer')">🎷 木管</button>
+                    <button class="btn-tool" onclick="addTrack('percussion', 'Drum Layer')">🥁 打楽器</button>
+                </div>
+                <div class="tool-group-title">データ読込 & レイヤー追加</div>
+            </div>
+            <div class="tool-group">
+                <div class="tool-row">
+                    <span style="font-size:0.8rem; color:var(--text-muted);">BPM:</span>
+                    <input type="number" id="bpmInput" value="120" min="40" max="240" style="width:60px; background:#18181b; color:white; border:1px solid var(--border-color); padding:4px; border-radius:4px;" onchange="updateBpm(this.value)">
+                </div>
+                <div class="tool-group-title">テンポ設定</div>
+            </div>
+        </div>
+
+        <!-- 楽器ライブラリ -->
+        <div class="ribbon-toolbar hidden" id="tab-instruments">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <span style="font-size:0.8rem; color:var(--text-muted);">選択トラック音源:</span>
+                    <select id="instSelect" class="select-tool" onchange="changeActiveTrackInstrument(this.value)">
+                        <optgroup label="鍵盤楽器">
+                            <option value="piano">Grand Piano (グランドピアノ)</option>
+                            <option value="epiano">Electric Piano (エレピ)</option>
+                            <option value="organ">Church Organ (パイプオルガン)</option>
+                        </optgroup>
+                        <optgroup label="金管楽器 (Brass)">
+                            <option value="trumpet">Trumpet (トランペット)</option>
+                            <option value="frenchhorn">French Horn (ホルン)</option>
+                            <option value="trombone">Trombone (トロンボーン)</option>
+                        </optgroup>
+                        <optgroup label="木管楽器 (Woodwinds)">
+                            <option value="flute">Flute (フルート)</option>
+                            <option value="clarinet">Clarinet (クラリネット)</option>
+                            <option value="sax">Alto Sax (アルトサックス)</option>
+                        </optgroup>
+                        <optgroup label="弦楽器 (Strings)">
+                            <option value="violin">Violin Solo (バイオリン)</option>
+                            <option value="strings">String Ensemble (弦楽合奏)</option>
+                        </optgroup>
+                        <optgroup label="パーカッション & 打楽器">
+                            <option value="marimba">Marimba (マリンバ)</option>
+                            <option value="timpani">Timpani (ティンパニ)</option>
+                            <option value="percussion">Standard Drum Kit (ドラム)</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="tool-group-title">リアルタイム合成音源変更</div>
+            </div>
+        </div>
+
+        <!-- キーボード設定 -->
+        <div class="ribbon-toolbar hidden" id="tab-keyboard">
+            <div class="tool-group">
+                <div class="tool-row">
+                    <button class="btn-tool" onclick="setDeckMode('piano')">🎹 2オクターブ 鍵盤</button>
+                    <button class="btn-tool" onclick="setDeckMode('pads')">🎛️ パーカッション パッド</button>
+                </div>
+                <div class="tool-group-title">演奏デッキ切り替え</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ワークスペース -->
+    <div class="workspace">
+        <div class="studio-container">
+            <!-- トラックコントロール（左） -->
+            <div class="track-controls" id="trackControls">
+                <div class="track-control-header">
+                    <span>TRACK LAYERS</span>
+                    <button class="btn-tool" style="height:22px; font-size:0.7rem;" onclick="addTrack('piano', 'New Layer')">+ レイヤー</button>
+                </div>
+            </div>
+
+            <!-- タイムライン（右） -->
+            <div class="timeline-container" id="timelineContainer">
+                <div class="timeline-header" id="timelineHeader"></div>
+                <div id="timelineLanes"></div>
+            </div>
+        </div>
+
+        <!-- リアルタイム演奏デッキ -->
+        <div class="instrument-deck">
+            <div class="deck-header">
+                <span id="deckTitle">🎹 REALTIME PIANO KEYBOARD</span>
+                <span style="color:var(--brand-accent);" id="activeInstLabel">Sound: Grand Piano</span>
+            </div>
+            <div id="deckContent" style="flex:1; display:flex;"></div>
+        </div>
+    </div>
+
+    <!-- ステータスバー -->
+    <div class="status-bar">
+        <div>
+            <span id="statTrackCount">トラック: 0</span> | 
+            <span id="statStatus">Ready</span>
+        </div>
+        <div id="statMidiInfo">Nexis MIDI Parser Ready</div>
+    </div>
+
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = new AudioContext();
+
+        let tracks = [];
+        let activeTrackId = null;
+        let isPlaying = false;
+        let currentStep = 0;
+        let bpm = 120;
+        let timerId = null;
+        let deckMode = 'piano';
+
+        const NOTES = {
+            'C3': 130.81, 'C#3': 138.59, 'D3': 146.83, 'D#3': 155.56, 'E3': 164.81, 'F3': 174.61, 'F#3': 185.00, 'G3': 196.00, 'G#3': 207.65, 'A3': 220.00, 'A#3': 233.08, 'B3': 246.94,
+            'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#4': 311.13, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88, 'C5': 523.25
+        };
+
+        const KEY_MAP = {
+            'KeyZ': { note: 'C3', keyLabel: 'Z' }, 'KeyS': { note: 'C#3', keyLabel: 'S' }, 'KeyX': { note: 'D3', keyLabel: 'X' }, 'KeyD': { note: 'D#3', keyLabel: 'D' }, 'KeyC': { note: 'E3', keyLabel: 'C' }, 'KeyV': { note: 'F3', keyLabel: 'V' }, 'KeyG': { note: 'F#3', keyLabel: 'G' }, 'KeyB': { note: 'G3', keyLabel: 'B' }, 'KeyH': { note: 'G#3', keyLabel: 'H' }, 'KeyN': { note: 'A3', keyLabel: 'N' }, 'KeyJ': { note: 'A#3', keyLabel: 'J' }, 'KeyM': { note: 'B3', keyLabel: 'M' },
+            'KeyQ': { note: 'C4', keyLabel: 'Q' }, 'Digit2': { note: 'C#4', keyLabel: '2' }, 'KeyW': { note: 'D4', keyLabel: 'W' }, 'Digit3': { note: 'D#4', keyLabel: '3' }, 'KeyE': { note: 'E4', keyLabel: 'E' }, 'KeyR': { note: 'F4', keyLabel: 'R' }, 'Digit5': { note: 'F#4', keyLabel: '5' }, 'KeyT': { note: 'G4', keyLabel: 'T' }, 'Digit6': { note: 'G#4', keyLabel: '6' }, 'KeyY': { note: 'A4', keyLabel: 'Y' }, 'Digit7': { note: 'A#4', keyLabel: '7' }, 'KeyU': { note: 'B4', keyLabel: 'U' }, 'KeyI': { note: 'C5', keyLabel: 'I' }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderTimelineHeader();
+            setupKeyboardListeners();
+        });
+
+        // --- Standard MIDI File Binary Parser (SMF Parser) ---
+        function triggerMidiUpload() {
+            document.getElementById('midiFileInput').click();
+        }
+
+        function handleMidiUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const parsedMidi = parseMidiBinary(evt.target.result);
+                    document.getElementById('docName').value = file.name.replace(/\.[^/.]+$/, "") + ".nmusic";
+                    document.getElementById('appHome').style.display = 'none';
+                    
+                    if (parsedMidi.tempo) {
+                        bpm = parsedMidi.tempo;
+                        document.getElementById('bpmInput').value = bpm;
+                    }
+
+                    // MIDIトラックからNexis Musicトラックレイヤーを生成
+                    tracks = [];
+                    parsedMidi.tracks.forEach((mTrk, idx) => {
+                        const instType = mapMidiProgramToInstrument(mTrk.program, mTrk.isDrum);
+                        const trackName = mTrk.name || `MIDI Trk ${idx + 1} (${instType})`;
+                        
+                        const steps = Array(16).fill(false);
+                        const ticksPer16th = (parsedMidi.timeDivision || 480) / 4;
+
+                        // ノートイベントを16ステップグリッドにクオンタイズ
+                        mTrk.notes.forEach(note => {
+                            const stepIdx = Math.floor(note.ticks / ticksPer16th) % 16;
+                            steps[stepIdx] = true;
+                        });
+
+                        tracks.push({
+                            id: 'tr_' + Date.now() + '_' + idx,
+                            name: trackName,
+                            instrument: instType,
+                            volume: 0.8,
+                            mute: false,
+                            steps: steps
+                        });
+                    });
+
+                    if (tracks.length > 0) activeTrackId = tracks[0].id;
+                    renderTracks();
+                    renderDeck();
+                    
+                    document.getElementById('statMidiInfo').textContent = `MIDI解析成功: BPM ${bpm} | ${parsedMidi.tracks.length} トラック展開完了`;
+                } catch(err) {
+                    alert('MIDIファイルの解析に失敗しました。標準的な.midファイルかご確認ください: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function parseMidiBinary(buffer) {
+            const data = new DataView(buffer);
+            let offset = 0;
+
+            function readStr(len) {
+                let s = "";
+                for (let i = 0; i < len; i++) s += String.fromCharCode(data.getUint8(offset++));
+                return s;
+            }
+            function read32() { const v = data.getUint32(offset); offset += 4; return v; }
+            function read16() { const v = data.getUint16(offset); offset += 2; return v; }
+            function readVarInt() {
+                let res = 0;
+                while (offset < buffer.byteLength) {
+                    let b = data.getUint8(offset++);
+                    res = (res << 7) | (b & 0x7F);
+                    if (!(b & 0x80)) break;
+                }
+                return res;
+            }
+
+            if (readStr(4) !== 'MThd') throw new Error('Invalid MIDI File');
+            const headerLen = read32();
+            const format = read16();
+            const numTracks = read16();
+            const timeDivision = read16();
+
+            let detectedTempo = 120;
+            const parsedTracks = [];
+
+            for (let t = 0; t < numTracks; t++) {
+                if (offset >= buffer.byteLength) break;
+                if (readStr(4) !== 'MTrk') break;
+                const trackLen = read32();
+                const endOffset = offset + trackLen;
+
+                let currentTicks = 0;
+                let runningStatus = 0;
+                let trackNotes = [];
+                let program = 0;
+                let isDrum = false;
+                let trackName = "";
+
+                while (offset < endOffset && offset < buffer.byteLength) {
+                    const deltaTime = readVarInt();
+                    currentTicks += deltaTime;
+
+                    let status = data.getUint8(offset);
+                    if (status >= 0x80) {
+                        runningStatus = status;
+                        offset++;
+                    } else {
+                        status = runningStatus;
+                    }
+
+                    const type = status & 0xF0;
+                    const channel = status & 0x0F;
+                    if (channel === 9) isDrum = true;
+
+                    if (type === 0x80 || type === 0x90) { // Note Off / On
+                        const noteNum = data.getUint8(offset++);
+                        const vel = data.getUint8(offset++);
+                        if (type === 0x90 && vel > 0) {
+                            trackNotes.push({ noteNum, ticks: currentTicks, vel });
+                        }
+                    } else if (type === 0xC0) { // Program Change
+                        program = data.getUint8(offset++);
+                    } else if (type === 0xA0 || type === 0xB0 || type === 0xE0) {
+                        offset += 2;
+                    } else if (type === 0xD0) {
+                        offset += 1;
+                    } else if (status === 0xFF) { // Meta Event
+                        const metaType = data.getUint8(offset++);
+                        const metaLen = readVarInt();
+                        if (metaType === 0x03) { // Track Name
+                            for (let i = 0; i < metaLen; i++) trackName += String.fromCharCode(data.getUint8(offset + i));
+                        } else if (metaType === 0x51 && metaLen === 3) { // Tempo
+                            const microsec = (data.getUint8(offset) << 16) | (data.getUint8(offset+1) << 8) | data.getUint8(offset+2);
+                            detectedTempo = Math.round(60000000 / microsec);
+                        }
+                        offset += metaLen;
+                    } else if (status === 0xF0 || status === 0xF7) {
+                        const sysLen = readVarInt();
+                        offset += sysLen;
+                    }
+                }
+
+                if (trackNotes.length > 0) {
+                    parsedTracks.push({
+                        name: trackName,
+                        program,
+                        isDrum,
+                        notes: trackNotes
+                    });
+                }
+            }
+
+            return { tempo: detectedTempo, timeDivision, tracks: parsedTracks };
+        }
+
+        // GM ProgramからNexis内蔵合成音源へのマッピング
+        function mapMidiProgramToInstrument(prog, isDrum) {
+            if (isDrum) return 'percussion';
+            if (prog >= 0 && prog <= 7) return 'piano';
+            if (prog >= 16 && prog <= 23) return 'organ';
+            if (prog >= 40 && prog <= 47) return 'strings';
+            if (prog >= 56 && prog <= 63) return 'trumpet';
+            if (prog >= 64 && prog <= 71) return 'flute';
+            if (prog >= 104 && prog <= 111) return 'marimba';
+            return 'piano';
+        }
+
+        // --- オーディオ合成エンジン ---
+        function playInstrumentNote(noteName, instType = 'piano', duration = 0.5, volume = 0.8) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const freq = NOTES[noteName] || 261.63;
+            const now = audioCtx.currentTime;
+
+            const masterGain = audioCtx.createGain();
+            masterGain.gain.setValueAtTime(volume, now);
+            masterGain.connect(audioCtx.destination);
+
+            switch(instType) {
+                case 'piano': {
+                    const osc1 = audioCtx.createOscillator();
+                    const osc2 = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc1.type = 'triangle'; osc2.type = 'sine';
+                    osc1.frequency.setValueAtTime(freq, now);
+                    osc2.frequency.setValueAtTime(freq * 2, now);
+                    gain.gain.setValueAtTime(0.9, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + duration * 1.5);
+                    osc1.connect(gain); osc2.connect(gain); gain.connect(masterGain);
+                    osc1.start(now); osc2.start(now);
+                    osc1.stop(now + duration * 1.5); osc2.stop(now + duration * 1.5);
+                    break;
+                }
+                case 'trumpet':
+                case 'frenchhorn':
+                case 'trombone': {
+                    const osc = audioCtx.createOscillator();
+                    const filter = audioCtx.createBiquadFilter();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq, now);
+                    filter.type = 'lowpass'; filter.Q.value = 3;
+                    filter.frequency.setValueAtTime(300, now);
+                    filter.frequency.exponentialRampToValueAtTime(3000, now + 0.08);
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.8, now + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+                    osc.connect(filter); filter.connect(gain); gain.connect(masterGain);
+                    osc.start(now); osc.stop(now + duration);
+                    break;
+                }
+                case 'flute':
+                case 'clarinet':
+                case 'sax': {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now);
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.7, now + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + duration * 1.2);
+                    osc.connect(gain); gain.connect(masterGain);
+                    osc.start(now); osc.stop(now + duration * 1.2);
+                    break;
+                }
+                case 'strings':
+                case 'violin': {
+                    const osc1 = audioCtx.createOscillator();
+                    const osc2 = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc1.type = 'sawtooth'; osc2.type = 'sawtooth';
+                    osc1.frequency.setValueAtTime(freq, now);
+                    osc2.frequency.setValueAtTime(freq * 1.003, now);
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.7, now + 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + duration * 1.5);
+                    osc1.connect(gain); osc2.connect(gain); gain.connect(masterGain);
+                    osc1.start(now); osc2.start(now);
+                    osc1.stop(now + duration * 1.5); osc2.stop(now + duration * 1.5);
+                    break;
+                }
+                default: {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.frequency.setValueAtTime(freq, now);
+                    gain.gain.setValueAtTime(0.8, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+                    osc.connect(gain); gain.connect(masterGain);
+                    osc.start(now); osc.stop(now + duration);
+                }
+            }
+        }
+
+        function playDrumSound(type = 'kick') {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+
+            if (type === 'kick') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.25);
+                gain.gain.setValueAtTime(1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(now); osc.stop(now + 0.25);
+            } else if (type === 'snare') {
+                const noise = audioCtx.createBufferSource();
+                const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.2, audioCtx.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < buffer.length; i++) output[i] = Math.random() * 2 - 1;
+                noise.buffer = buffer;
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.8, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                noise.connect(gain); gain.connect(audioCtx.destination);
+                noise.start(now);
+            }
+        }
+
+        // --- シーケンサー・操作機能 ---
+        function startNewProject(template) {
+            document.getElementById('appHome').style.display = 'none';
+            tracks = [];
+            if (template === 'orchestral') {
+                document.getElementById('docName').value = 'Orchestral_Session.nmusic';
+                addTrack('piano', 'Grand Piano');
+                addTrack('strings', 'Violins');
+                addTrack('trumpet', 'Brass');
+                addTrack('flute', 'Woodwind');
+            } else {
+                document.getElementById('docName').value = 'Piano_Solo.nmusic';
+                addTrack('piano', 'Grand Piano');
+            }
+            renderTracks();
+            renderDeck();
+        }
+
+        function addTrack(instType = 'piano', name = 'Layer') {
+            const id = 'tr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+            tracks.push({
+                id,
+                name: name,
+                instrument: instType,
+                volume: 0.8,
+                mute: false,
+                steps: Array(16).fill(false)
+            });
+            activeTrackId = id;
+            renderTracks();
+            renderDeck();
+        }
+
+        function renderTimelineHeader() {
+            const header = document.getElementById('timelineHeader');
+            header.innerHTML = '';
+            for (let i = 0; i < 16; i++) {
+                const step = document.createElement('div');
+                step.className = 'timeline-step-label';
+                step.textContent = i + 1;
+                header.appendChild(step);
+            }
+        }
+
+        function renderTracks() {
+            const controls = document.getElementById('trackControls');
+            const lanes = document.getElementById('timelineLanes');
+            
+            controls.innerHTML = '<div class="track-control-header"><span>TRACK LAYERS</span><button class="btn-tool" style="height:22px; font-size:0.7rem;" onclick="addTrack(\'piano\', \'New Layer\')">+ レイヤー</button></div>';
+            lanes.innerHTML = '';
+
+            tracks.forEach((track) => {
+                const card = document.createElement('div');
+                card.className = `track-header-card ${track.id === activeTrackId ? 'active' : ''}`;
+                card.onclick = () => { activeTrackId = track.id; renderTracks(); renderDeck(); };
+
+                card.innerHTML = `
+                    <div class="track-title-row">
+                        <input class="track-name" value="${track.name}" onchange="track.name=this.value">
+                        <span class="track-type-badge">${track.instrument.toUpperCase()}</span>
+                    </div>
+                    <div class="track-knobs">
+                        <label>Vol: <input type="range" min="0" max="1" step="0.1" value="${track.volume}" style="width:50px;" onchange="track.volume=parseFloat(this.value)"></label>
+                        <button class="btn-tool" style="height:20px; font-size:0.65rem;" onclick="event.stopPropagation(); deleteTrack('${track.id}')">🗑️</button>
+                    </div>
+                `;
+                controls.appendChild(card);
+
+                const lane = document.createElement('div');
+                lane.className = 'track-lane';
+
+                for (let i = 0; i < 16; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = `step-cell ${track.steps[i] ? 'active' : ''} ${isPlaying && currentStep === i ? 'playing' : ''}`;
+                    cell.onclick = (e) => {
+                        e.stopPropagation();
+                        track.steps[i] = !track.steps[i];
+                        renderTracks();
+                    };
+                    lane.appendChild(cell);
+                }
+                lanes.appendChild(lane);
+            });
+
+            updateStats();
+        }
+
+        function changeActiveTrackInstrument(inst) {
+            const track = tracks.find(t => t.id === activeTrackId);
+            if (track) {
+                track.instrument = inst;
+                renderTracks();
+                renderDeck();
+            }
+        }
+
+        function deleteTrack(id) {
+            tracks = tracks.filter(t => t.id !== id);
+            if (activeTrackId === id) activeTrackId = tracks.length ? tracks[0].id : null;
+            renderTracks();
+            renderDeck();
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                stopPlay();
+            } else {
+                isPlaying = true;
+                document.getElementById('playIcon').textContent = '⏸ 一時停止';
+                document.getElementById('statStatus').textContent = 'Playing';
+                currentStep = 0;
+                runSequencer();
+            }
+        }
+
+        function stopPlay() {
+            isPlaying = false;
+            clearTimeout(timerId);
+            document.getElementById('playIcon').textContent = '▶ 再生';
+            document.getElementById('statStatus').textContent = 'Stopped';
+            currentStep = 0;
+            renderTracks();
+        }
+
+        function runSequencer() {
+            if (!isPlaying) return;
+
+            tracks.forEach(track => {
+                if (track.steps[currentStep] && !track.mute) {
+                    if (track.instrument === 'percussion') {
+                        playDrumSound('kick');
+                    } else {
+                        playInstrumentNote('C4', track.instrument, 0.25, track.volume);
+                    }
+                }
+            });
+
+            renderTracks();
+            currentStep = (currentStep + 1) % 16;
+            const interval = (60 / bpm / 4) * 1000;
+            timerId = setTimeout(runSequencer, interval);
+        }
+
+        function updateBpm(val) { bpm = parseInt(val) || 120; }
+
+        function setupKeyboardListeners() {
+            window.addEventListener('keydown', (e) => {
+                if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+                const mapped = KEY_MAP[e.code];
+                if (mapped) {
+                    const activeTrack = tracks.find(t => t.id === activeTrackId);
+                    const inst = activeTrack ? activeTrack.instrument : 'piano';
+                    playInstrumentNote(mapped.note, inst, 0.6, 0.9);
+                    highlightKeyUI(mapped.note, true);
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                const mapped = KEY_MAP[e.code];
+                if (mapped) highlightKeyUI(mapped.note, false);
+            });
+        }
+
+        function highlightKeyUI(noteName, active) {
+            const el = document.querySelector(`[data-note="${noteName}"]`);
+            if (el) el.classList.toggle('active', active);
+        }
+
+        function setDeckMode(mode) { deckMode = mode; renderDeck(); }
+
+        function renderDeck() {
+            const deck = document.getElementById('deckContent');
+            const title = document.getElementById('deckTitle');
+            const label = document.getElementById('activeInstLabel');
+
+            const activeTrack = tracks.find(t => t.id === activeTrackId);
+            const inst = activeTrack ? activeTrack.instrument : 'piano';
+            document.getElementById('instSelect').value = inst;
+            label.textContent = `Active Sound: ${inst.toUpperCase()}`;
+
+            if (deckMode === 'piano') {
+                title.textContent = '🎹 2-OCTAVE REALTIME KEYBOARD (PC Keys: Z-M / Q-I)';
+                const notesList = [
+                    { note: 'C3', black: 'C#3' }, { note: 'D3', black: 'D#3' }, { note: 'E3', black: null },
+                    { note: 'F3', black: 'F#3' }, { note: 'G3', black: 'G#3' }, { note: 'A3', black: 'A#3' }, { note: 'B3', black: null },
+                    { note: 'C4', black: 'C#4' }, { note: 'D4', black: 'D#4' }, { note: 'E4', black: null },
+                    { note: 'F4', black: 'F#4' }, { note: 'G4', black: 'G#4' }, { note: 'A4', black: 'A#4' }, { note: 'B4', black: null },
+                    { note: 'C5', black: null }
+                ];
+
+                let pianoHTML = '<div class="piano-container"><div class="piano-keyboard">';
+                notesList.forEach((item) => {
+                    const whiteKeyHint = Object.values(KEY_MAP).find(k => k.note === item.note)?.keyLabel || '';
+                    pianoHTML += `<div class="key-white" data-note="${item.note}" onclick="playInstrumentNote('${item.note}', '${inst}', 0.8, 0.9)">${item.note}<span class="key-hint">${whiteKeyHint}</span></div>`;
+                    if (item.black) {
+                        const blackKeyHint = Object.values(KEY_MAP).find(k => k.note === item.black)?.keyLabel || '';
+                        pianoHTML += `<div class="key-black" data-note="${item.black}" onclick="event.stopPropagation(); playInstrumentNote('${item.black}', '${inst}', 0.8, 0.9)"><span class="key-hint">${blackKeyHint}</span></div>`;
+                    }
+                });
+                pianoHTML += '</div></div>';
+                deck.innerHTML = pianoHTML;
+            } else {
+                title.textContent = '🎛️ PERCUSSION PADS';
+                deck.innerHTML = `
+                    <div class="pad-grid">
+                        <div class="pad-btn" onclick="playDrumSound('kick')">🥁 KICK<span class="pad-sub">Bass Drum</span></div>
+                        <div class="pad-btn" onclick="playDrumSound('snare')">💥 SNARE<span class="pad-sub">Snare Drum</span></div>
+                    </div>
+                `;
+            }
+        }
+
+        function saveProject() {
+            const name = document.getElementById('docName').value;
+            const data = { name, bpm, tracks };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            a.click();
+        }
+
+        function switchTab(evt, tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.ribbon-toolbar').forEach(t => t.classList.add('hidden'));
+            evt.currentTarget.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        }
+
+        function showHome() { document.getElementById('appHome').style.display = 'flex'; }
+        function updateStats() { document.getElementById('statTrackCount').textContent = `トラック: ${tracks.length}`; }
+    </script>
+</body>
+</html>
